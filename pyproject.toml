@@ -1,0 +1,60 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "orchid-skills-commons"
+version = "0.1.0"
+description = "Shared resource connections for Orchid ecosystem services and MCPs"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [{ name = "Orchid" }]
+license = { text = "MIT" }
+dependencies = [
+  "aiosqlite>=0.20.0",
+  "pydantic>=2.0",
+]
+
+[project.optional-dependencies]
+sql = [
+  "asyncpg>=0.29.0",
+]
+blob = [
+  "minio>=7.2.0",
+]
+observability = [
+  "prometheus-client>=0.20.0",
+  "opentelemetry-api>=1.25.0",
+  "opentelemetry-sdk>=1.25.0",
+  "opentelemetry-exporter-otlp>=1.25.0",
+  "langfuse>=3.0.0",
+]
+all = [
+  "orchid-skills-commons[sql,blob,observability]",
+]
+dev = [
+  "pytest>=8.3.0",
+  "pytest-asyncio>=0.24.0",
+  "pytest-cov>=5.0.0",
+  "testcontainers[postgres]>=4.8.2",
+  "ruff>=0.4.0",
+  "mypy>=1.10.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/orchid_commons"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+markers = [
+  "integration: tests that require external services (Docker, databases, MinIO)",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "ASYNC", "RUF"]
+ignore = ["E501"]

@@ -1,0 +1,224 @@
+"""Typed configuration models with Pydantic validation."""
+
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+
+def _r2_endpoint_from_account(account_id: str) -> str:
+    return f"{account_id}.r2.cloudflarestorage.com"
+
+
+class ServiceSettings(BaseModel):
+    """Service identification and network settings."""
+
+    model_config = ConfigDict(frozen=True)
+
+    name: str = Field(..., min_length=1, description="Service name")
+    version: str = Field(..., min_length=1, description="Service version")
+    host: str = Field(default="0.0.0.0", description="Bind host")
+    port: int = Field(default=8000, ge=1, le=65535, description="Bind port")
+
+
+class LoggingSettings(BaseModel):
+    """Logging configuration."""
+
+    model_config = ConfigDict(frozen=True)
+
+    level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = Field(
+        default="INFO", description="Log level"
+    )
+    format: Literal["json", "text"] = Field(default="json", description="Log output format")
+    sampling: float | None = Field(
+        default=None,
+        ge=0.0,
+        le=1.0,
+        description="Optional sampling ratio for low-severity logs",
+    )
+
+
+class LangfuseSettings(BaseModel):
+    """Langfuse tracing client configuration."""
+
+    model_config = ConfigDict(frozen=True)
+
+    enabled: bool = Field(default=True, description="Enable Langfuse tracing")
+    public_key: str | None = Field(default=None, min_length=1, description="Langfuse public key")
+    secret_key: str | None = Field(default=None, min_length=1, description="Langfuse secret key")
+    base_url: str = Field(
+        default="https://cloud.langfuse.com",
+        min_length=1,
+        description="Langfuse API base URL",
+    )
+    environment: str | None = Field(default=None, min_length=1, description="Tracing environment")
+    release: str | None = Field(default=None, min_length=1, description="Application release tag")
+    timeout_seconds: int = Field(default=5, ge=1, description="HTTP timeout in seconds")
+    flush_at: int = Field(default=512, ge=1, description="Batch flush size")
+    flush_interval_seconds: float = Field(default=5.0, gt=0, description="Batch flush interval")
+    sample_rate: float = Field(default=1.0, ge=0.0, le=1.0, description="Trace sample rate")
+    debug: bool = Field(default=False, description="Enable Langfuse SDK debug mode")
+
+
+class ObservabilitySettings(BaseModel):
+    """Observability and telemetry settings."""
+
+    model_config = ConfigDict(frozen=True)
+
+    enabled: bool = Field(default=True, description="Enable observability")
+    otlp_endpoint: str | None = Field(default=None, description="OpenTelemetry collector endpoint")
+    service_name: str | None = Field(default=None, description="Override service name for traces")
+    sample_rate: float = Field(default=1.0, ge=0.0, le=1.0, description="Trace sample rate")
+    otlp_insecure: bool = Field(
+        default=True,
+        description="Use insecure gRPC OTLP transport (disable TLS)",
+    )
+    otlp_timeout_seconds: float = Field(
+        default=10.0,
+        gt=0.0,
+        description="Timeout for OTLP exports in seconds",
+    )
+    retry_enabled: bool = Field(default=True, description="Retry failed OTLP exports")
+    retry_max_attempts: int = Field(
+        default=3,
+        ge=1,
+        description="Maximum OTLP export attempts (including the first attempt)",
+    )
+    retry_initial_backoff_seconds: float = Field(
+        default=0.2,
+        ge=0.0,
+        description="Initial exponential backoff between OTLP retries in seconds",
+    )
+    retry_max_backoff_seconds: float = Field(
+        default=5.0,
+        gt=0.0,
+        description="Maximum exponential backoff between OTLP retries in seconds",
+    )
+    metrics_export_interval_seconds: float = Field(
+        default=30.0,
+        gt=0.0,
+        description="Periodic metric export interval in seconds",
+    )
+    langfuse: LangfuseSettings = Field(default_factory=LangfuseSettings)
+
+
+class PostgresSettings(BaseModel):
+    """PostgreSQL connection settings."""
+
+    model_config = ConfigDict(frozen=True)
+
+    dsn: str = Field(..., min_length=1, description="PostgreSQL connection string")
+    min_pool_size: int = Field(default=1, ge=1, description="Minimum pool connections")
+    max_pool_size: int = Field(default=10, ge=1, description="Maximum pool connections")
+    command_timeout_seconds: float = Field(
+        default=60.0, gt=0, description="Command timeout in seconds"
+    )
+
+
+class SqliteSettings(BaseModel):
+    """SQLite connection settings."""
+
+    model_config = ConfigDict(frozen=True)
+
+    db_path: Path = Field(default=Path("data/app.db"), description="Path to SQLite database file")
+
+
+class MinioSettings(BaseModel):
+    """MinIO/S3 connection settings."""
+
+    model_config = ConfigDict(frozen=True)
+
+    endpoint: str = Field(..., min_length=1, description="MinIO endpoint")
+    access_key: str = Field(..., min_length=1, description="Access key")
+    secret_key: str = Field(..., min_length=1, description="Secret key")
+    bucket: str = Field(default="orchid", min_length=1, description="Default bucket name")
+    create_bucket_if_missing: bool = Field(
+        default=False, description="Create bucket on startup when it is missing"
+    )
+    secure: bool = Field(default=False, description="Use HTTPS")
+    region: str | None = Field(default=None, description="AWS region")
+
+    def to_s3_client_kwargs(self) -> dict[str, str | bool | None]:
+        """Return kwargs compatible with S3-compatible clients like MinIO."""
+        return {
+            "endpoint": self.endpoint,
+            "access_key": self.access_key,
+            "secret_key": self.secret_key,
+            "secure": self.secure,
+            "region": self.region,
+        }
+
+    def presign_base_url(self) -> str:
+        scheme = "https" if self.secure else "http"
+        return f"{scheme}://{self.endpoint}"
+
+
+class R2Settings(BaseModel):
+    """Cloudflare R2 settings using the S3-compatible API."""
+
+    model_config = ConfigDict(frozen=True)
+
+    access_key: str = Field(..., min_length=1, description="R2 access key")
+    secret_key: str = Field(..., min_length=1, description="R2 secret key")
+    bucket: str = Field(default="orchid", min_length=1, description="Default bucket name")
+    account_id: str | None = Field(
+        default=None, min_length=1, description="Cloudflare account id used to derive endpoint"
+    )
+    endpoint: str | None = Field(default=None, min_length=1, description="R2 endpoint override")
+    create_bucket_if_missing: bool = Field(
+        default=False, description="Create bucket on startup when it is missing"
+    )
+    secure: bool = Field(default=True, description="Use HTTPS")
+    region: str = Field(default="auto", min_length=1, description="R2 region (usually auto)")
+
+    @model_validator(mode="after")
+    def validate_endpoint_or_account(self) -> R2Settings:
+        if self.endpoint is None and self.account_id is None:
+            raise ValueError("Either endpoint or account_id must be provided for R2")
+        return self
+
+    @property
+    def resolved_endpoint(self) -> str:
+        if self.endpoint:
+            return self.endpoint
+        if self.account_id is None:
+            raise ValueError("Either endpoint or account_id must be provided for R2")
+        return _r2_endpoint_from_account(self.account_id)
+
+    def to_s3_client_kwargs(self) -> dict[str, str | bool]:
+        """Return kwargs compatible with S3-compatible clients like MinIO."""
+        return {
+            "endpoint": self.resolved_endpoint,
+            "access_key": self.access_key,
+            "secret_key": self.secret_key,
+            "secure": self.secure,
+            "region": self.region,
+        }
+
+    def presign_base_url(self) -> str:
+        scheme = "https" if self.secure else "http"
+        return f"{scheme}://{self.resolved_endpoint}"
+
+
+class ResourcesSettings(BaseModel):
+    """External resource connections."""
+
+    model_config = ConfigDict(frozen=True)
+
+    postgres: PostgresSettings | None = Field(default=None)
+    sqlite: SqliteSettings | None = Field(default=None)
+    minio: MinioSettings | None = Field(default=None)
+    r2: R2Settings | None = Field(default=None)
+
+
+class AppSettings(BaseModel):
+    """Root application settings."""
+
+    model_config = ConfigDict(frozen=True)
+
+    service: ServiceSettings
+    logging: LoggingSettings = Field(default_factory=LoggingSettings)
+    observability: ObservabilitySettings = Field(default_factory=ObservabilitySettings)
+    resources: ResourcesSettings = Field(default_factory=ResourcesSettings)
