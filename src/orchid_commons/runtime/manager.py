@@ -335,12 +335,21 @@ def _ensure_builtin_factories() -> None:
         return
 
     from orchid_commons.blob.minio import create_minio_profile
-    from orchid_commons.sql import create_postgres_provider, create_sqlite_resource
+    from orchid_commons.db import (
+        create_mongodb_resource,
+        create_postgres_provider,
+        create_redis_cache,
+        create_sqlite_resource,
+    )
 
     if "sqlite" not in _RESOURCE_FACTORIES:
         register_factory("sqlite", "sqlite", create_sqlite_resource)
     if "postgres" not in _RESOURCE_FACTORIES:
         register_factory("postgres", "postgres", create_postgres_provider)
+    if "redis" not in _RESOURCE_FACTORIES:
+        register_factory("redis", "redis", create_redis_cache)
+    if "mongodb" not in _RESOURCE_FACTORIES:
+        register_factory("mongodb", "mongodb", create_mongodb_resource)
     if "minio" not in _RESOURCE_FACTORIES:
         register_factory("minio", "minio", create_minio_profile)
     _BUILTIN_FACTORIES_REGISTERED = True

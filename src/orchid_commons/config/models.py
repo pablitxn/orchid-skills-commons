@@ -155,6 +155,65 @@ class MinioSettings(BaseModel):
         return f"{scheme}://{self.endpoint}"
 
 
+class RedisSettings(BaseModel):
+    """Redis cache connection settings."""
+
+    model_config = ConfigDict(frozen=True)
+
+    url: str = Field(..., min_length=1, description="Redis connection URL")
+    key_prefix: str = Field(default="", description="Optional key prefix")
+    default_ttl_seconds: int | None = Field(
+        default=None,
+        ge=1,
+        description="Default TTL for cached keys, omitted for no expiry",
+    )
+    encoding: str = Field(default="utf-8", min_length=1, description="Redis text encoding")
+    decode_responses: bool = Field(
+        default=True,
+        description="Decode Redis responses to text values",
+    )
+    socket_timeout_seconds: float | None = Field(
+        default=5.0,
+        gt=0.0,
+        description="Read/write socket timeout in seconds",
+    )
+    connect_timeout_seconds: float | None = Field(
+        default=5.0,
+        gt=0.0,
+        description="Socket connect timeout in seconds",
+    )
+    health_check_interval_seconds: float = Field(
+        default=15.0,
+        ge=0.0,
+        description="Background health check interval in seconds",
+    )
+
+
+class MongoDbSettings(BaseModel):
+    """MongoDB connection settings."""
+
+    model_config = ConfigDict(frozen=True)
+
+    uri: str = Field(..., min_length=1, description="MongoDB connection URI")
+    database: str = Field(..., min_length=1, description="Database name")
+    server_selection_timeout_ms: int = Field(
+        default=2000,
+        ge=1,
+        description="Server selection timeout in milliseconds",
+    )
+    connect_timeout_ms: int = Field(
+        default=2000,
+        ge=1,
+        description="Socket connect timeout in milliseconds",
+    )
+    ping_timeout_seconds: float = Field(
+        default=2.0,
+        gt=0.0,
+        description="Timeout for health ping in seconds",
+    )
+    app_name: str | None = Field(default=None, min_length=1, description="Optional app name")
+
+
 class R2Settings(BaseModel):
     """Cloudflare R2 settings using the S3-compatible API."""
 
@@ -209,6 +268,8 @@ class ResourcesSettings(BaseModel):
 
     postgres: PostgresSettings | None = Field(default=None)
     sqlite: SqliteSettings | None = Field(default=None)
+    redis: RedisSettings | None = Field(default=None)
+    mongodb: MongoDbSettings | None = Field(default=None)
     minio: MinioSettings | None = Field(default=None)
     r2: R2Settings | None = Field(default=None)
 

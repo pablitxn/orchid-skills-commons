@@ -27,12 +27,24 @@ from orchid_commons.config import (
     load_config,
 )
 from orchid_commons.config.resources import (
+    MongoDbSettings,
     MinioSettings,
     PgVectorSettings,
     PostgresSettings,
+    RedisSettings,
     R2Settings,
     ResourceSettings,
     SqliteSettings,
+)
+from orchid_commons.db import (
+    MongoDbResource,
+    PostgresProvider,
+    RedisCache,
+    SqliteResource,
+    create_mongodb_resource,
+    create_postgres_provider,
+    create_redis_cache,
+    create_sqlite_resource,
 )
 from orchid_commons.observability import (
     LangfuseClient,
@@ -89,12 +101,6 @@ from orchid_commons.runtime.manager import (
     bootstrap_resources,
     register_factory,
 )
-from orchid_commons.sql import (
-    PostgresProvider,
-    SqliteResource,
-    create_postgres_provider,
-    create_sqlite_resource,
-)
 
 __all__ = [
     "AppSettings",
@@ -115,6 +121,8 @@ __all__ = [
     "LangfuseClient",
     "LangfuseClientSettings",
     "MetricsRecorder",
+    "MongoDbResource",
+    "MongoDbSettings",
     "MinioProfile",
     "MinioSettings",
     "MissingRequiredResourceError",
@@ -128,6 +136,8 @@ __all__ = [
     "PostgresSettings",
     "PrometheusHttpServer",
     "PrometheusMetricsRecorder",
+    "RedisCache",
+    "RedisSettings",
     "R2Settings",
     "Resource",
     "ResourceManager",
@@ -147,9 +157,11 @@ __all__ = [
     "correlation_scope",
     "correlation_scope_from_headers",
     "create_langfuse_client",
+    "create_mongodb_resource",
     "create_minio_profile",
     "create_postgres_provider",
     "create_prometheus_asgi_app",
+    "create_redis_cache",
     "create_r2_profile",
     "create_sqlite_resource",
     "extract_correlation_ids",
