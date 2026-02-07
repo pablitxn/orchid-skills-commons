@@ -10,10 +10,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, TypeVar
 
-from orchid_commons.errors import MissingDependencyError
-from orchid_commons.health import HealthStatus
-from orchid_commons.metrics import MetricsRecorder, get_metrics_recorder
-from orchid_commons.settings import PostgresSettings
+from orchid_commons.config.resources import PostgresSettings
+from orchid_commons.observability.metrics import MetricsRecorder, get_metrics_recorder
+from orchid_commons.runtime.errors import MissingDependencyError
+from orchid_commons.runtime.health import HealthStatus
 
 _T = TypeVar("_T")
 

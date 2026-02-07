@@ -10,9 +10,9 @@ from typing import Any
 
 import aiosqlite
 
-from orchid_commons.health import HealthStatus
-from orchid_commons.metrics import MetricsRecorder, get_metrics_recorder
-from orchid_commons.settings import SqliteSettings
+from orchid_commons.config.resources import SqliteSettings
+from orchid_commons.observability.metrics import MetricsRecorder, get_metrics_recorder
+from orchid_commons.runtime.health import HealthStatus
 
 
 def _read_sql_file(path: Path) -> str:

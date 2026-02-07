@@ -8,10 +8,10 @@ from time import perf_counter
 from typing import Protocol
 
 from orchid_commons.blob.s3 import S3BlobStorage, S3CompatibleClient
-from orchid_commons.errors import MissingDependencyError
-from orchid_commons.health import HealthStatus
-from orchid_commons.manager import register_factory
-from orchid_commons.settings import MinioSettings
+from orchid_commons.config.resources import MinioSettings
+from orchid_commons.runtime.errors import MissingDependencyError
+from orchid_commons.runtime.health import HealthStatus
+from orchid_commons.runtime.manager import register_factory
 
 
 class SupportsBucketBootstrapClient(S3CompatibleClient, Protocol):
