@@ -10,7 +10,9 @@ from orchid_commons.config import load_config
 from orchid_commons.config.resources import (
     MinioSettings,
     MongoDbSettings,
+    QdrantSettings,
     R2Settings,
+    RabbitMqSettings,
     RedisSettings,
     ResourceSettings,
 )
@@ -97,6 +99,39 @@ class TestResourceSettings:
         assert resources.mongodb.uri == "mongodb://localhost:27017"
         assert resources.mongodb.database == "orchid"
         assert resources.mongodb.app_name == "orchid-tests"
+
+    def test_from_app_settings_maps_rabbitmq_and_qdrant(self, tmp_path: Path) -> None:
+        config_file = tmp_path / "appsettings.json"
+        config_file.write_text(
+            """
+            {
+              "service": {"name": "svc", "version": "1.0"},
+              "resources": {
+                "rabbitmq": {
+                  "url": "amqp://guest:guest@localhost:5672/",
+                  "prefetch_count": 20
+                },
+                "qdrant": {
+                  "host": "localhost",
+                  "port": 6333,
+                  "collection_prefix": "orchid"
+                }
+              }
+            }
+            """,
+            encoding="utf-8",
+        )
+
+        app_settings = load_config(config_dir=tmp_path)
+        resources = ResourceSettings.from_app_settings(app_settings)
+
+        assert resources.rabbitmq is not None
+        assert resources.rabbitmq.url == "amqp://guest:guest@localhost:5672/"
+        assert resources.rabbitmq.prefetch_count == 20
+        assert resources.qdrant is not None
+        assert resources.qdrant.host == "localhost"
+        assert resources.qdrant.port == 6333
+        assert resources.qdrant.collection_prefix == "orchid"
 
 
 class TestR2Settings:
@@ -197,6 +232,32 @@ class TestResourceSettingsFromEnv:
         assert settings.mongodb.uri == "mongodb://localhost:27017"
         assert settings.mongodb.database == "orchid"
         assert settings.mongodb.app_name == "orchid-tests"
+
+    def test_loads_rabbitmq_from_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("TEST_RABBITMQ_URL", "amqp://guest:guest@localhost:5672/")
+        monkeypatch.setenv("TEST_RABBITMQ_PREFETCH_COUNT", "10")
+        monkeypatch.setenv("TEST_RABBITMQ_PUBLISHER_CONFIRMS", "false")
+
+        settings = ResourceSettings.from_env(prefix="TEST_")
+
+        assert settings.rabbitmq is not None
+        assert isinstance(settings.rabbitmq, RabbitMqSettings)
+        assert settings.rabbitmq.url == "amqp://guest:guest@localhost:5672/"
+        assert settings.rabbitmq.prefetch_count == 10
+        assert settings.rabbitmq.publisher_confirms is False
+
+    def test_loads_qdrant_from_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("TEST_QDRANT_HOST", "qdrant.local")
+        monkeypatch.setenv("TEST_QDRANT_PORT", "6333")
+        monkeypatch.setenv("TEST_QDRANT_COLLECTION_PREFIX", "orchid")
+
+        settings = ResourceSettings.from_env(prefix="TEST_")
+
+        assert settings.qdrant is not None
+        assert isinstance(settings.qdrant, QdrantSettings)
+        assert settings.qdrant.host == "qdrant.local"
+        assert settings.qdrant.port == 6333
+        assert settings.qdrant.collection_prefix == "orchid"
 
 
 class TestMinioSettings:

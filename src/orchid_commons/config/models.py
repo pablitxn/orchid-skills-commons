@@ -214,6 +214,51 @@ class MongoDbSettings(BaseModel):
     app_name: str | None = Field(default=None, min_length=1, description="Optional app name")
 
 
+class RabbitMqSettings(BaseModel):
+    """RabbitMQ connection settings."""
+
+    model_config = ConfigDict(frozen=True)
+
+    url: str = Field(..., min_length=1, description="RabbitMQ connection URL")
+    prefetch_count: int = Field(default=50, ge=1, description="Consumer prefetch count")
+    connect_timeout_seconds: float = Field(
+        default=10.0,
+        gt=0.0,
+        description="Connect timeout in seconds",
+    )
+    heartbeat_seconds: int = Field(
+        default=60,
+        ge=0,
+        description="AMQP heartbeat interval in seconds",
+    )
+    publisher_confirms: bool = Field(
+        default=True,
+        description="Enable publisher confirms on channel",
+    )
+
+
+class QdrantSettings(BaseModel):
+    """Qdrant vector database settings."""
+
+    model_config = ConfigDict(frozen=True)
+
+    url: str | None = Field(default=None, min_length=1, description="Qdrant base URL")
+    host: str | None = Field(default=None, min_length=1, description="Qdrant host")
+    port: int = Field(default=6333, ge=1, le=65535, description="Qdrant HTTP port")
+    grpc_port: int = Field(default=6334, ge=1, le=65535, description="Qdrant gRPC port")
+    use_ssl: bool = Field(default=False, description="Use HTTPS/TLS")
+    api_key: str | None = Field(default=None, min_length=1, description="Qdrant API key")
+    timeout_seconds: float = Field(default=10.0, gt=0.0, description="Request timeout")
+    prefer_grpc: bool = Field(default=False, description="Prefer gRPC transport")
+    collection_prefix: str = Field(default="", description="Collection name prefix")
+
+    @model_validator(mode="after")
+    def validate_url_or_host(self) -> QdrantSettings:
+        if self.url is None and self.host is None:
+            raise ValueError("Either url or host must be provided for Qdrant")
+        return self
+
+
 class R2Settings(BaseModel):
     """Cloudflare R2 settings using the S3-compatible API."""
 
@@ -270,6 +315,8 @@ class ResourcesSettings(BaseModel):
     sqlite: SqliteSettings | None = Field(default=None)
     redis: RedisSettings | None = Field(default=None)
     mongodb: MongoDbSettings | None = Field(default=None)
+    rabbitmq: RabbitMqSettings | None = Field(default=None)
+    qdrant: QdrantSettings | None = Field(default=None)
     minio: MinioSettings | None = Field(default=None)
     r2: R2Settings | None = Field(default=None)
 

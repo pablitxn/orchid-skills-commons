@@ -338,6 +338,8 @@ def _ensure_builtin_factories() -> None:
     from orchid_commons.db import (
         create_mongodb_resource,
         create_postgres_provider,
+        create_qdrant_vector_store,
+        create_rabbitmq_broker,
         create_redis_cache,
         create_sqlite_resource,
     )
@@ -350,6 +352,10 @@ def _ensure_builtin_factories() -> None:
         register_factory("redis", "redis", create_redis_cache)
     if "mongodb" not in _RESOURCE_FACTORIES:
         register_factory("mongodb", "mongodb", create_mongodb_resource)
+    if "rabbitmq" not in _RESOURCE_FACTORIES:
+        register_factory("rabbitmq", "rabbitmq", create_rabbitmq_broker)
+    if "qdrant" not in _RESOURCE_FACTORIES:
+        register_factory("qdrant", "qdrant", create_qdrant_vector_store)
     if "minio" not in _RESOURCE_FACTORIES:
         register_factory("minio", "minio", create_minio_profile)
     _BUILTIN_FACTORIES_REGISTERED = True

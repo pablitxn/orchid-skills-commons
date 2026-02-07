@@ -20,6 +20,8 @@ db = [
   "asyncpg>=0.29.0",
   "redis>=5.0.0",
   "motor>=3.6.0",
+  "aio-pika>=9.4.0",
+  "qdrant-client>=1.9.0",
 ]
 sql = [
   "asyncpg>=0.29.0",
@@ -29,6 +31,12 @@ redis = [
 ]
 mongodb = [
   "motor>=3.6.0",
+]
+rabbitmq = [
+  "aio-pika>=9.4.0",
+]
+qdrant = [
+  "qdrant-client>=1.9.0",
 ]
 blob = [
   "minio>=7.2.0",

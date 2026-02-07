@@ -27,6 +27,8 @@ uv sync --extra db            # PostgreSQL + Redis + MongoDB support
 uv sync --extra sql           # PostgreSQL-only support (legacy alias)
 uv sync --extra redis         # Redis-only support
 uv sync --extra mongodb       # MongoDB-only support
+uv sync --extra rabbitmq      # RabbitMQ async support
+uv sync --extra qdrant        # Qdrant vector DB support
 uv sync --extra blob          # MinIO/S3 support
 uv sync --extra observability # Prometheus + OpenTelemetry + Langfuse support
 ```
@@ -149,7 +151,7 @@ payload = report.to_dict()  # JSON-serializable
 ```
 
 Returned payload includes:
-- per-resource check status + latency (`sqlite`, `postgres`, `redis`, `mongodb`, `minio`, `r2`, etc.)
+- per-resource check status + latency (`sqlite`, `postgres`, `redis`, `mongodb`, `rabbitmq`, `qdrant`, `minio`, `r2`, etc.)
 - aggregate status (`ok`, `degraded`, `down`)
 - readiness/liveness booleans
 - optional `otel`/`langfuse` checks when enabled
@@ -259,10 +261,12 @@ uv run ruff check . && uv run ruff format --check . && uv run pytest
 
 | Extra           | Description                        | Dependencies                          |
 | --------------- | ---------------------------------- | ------------------------------------- |
-| `db`            | SQL + cache + document databases   | asyncpg, redis, motor                 |
+| `db`            | SQL + cache + document databases   | asyncpg, redis, motor, aio-pika, qdrant-client |
 | `sql`           | PostgreSQL async support           | asyncpg                               |
 | `redis`         | Redis async cache support          | redis                                 |
 | `mongodb`       | MongoDB async support              | motor                                 |
+| `rabbitmq`      | RabbitMQ async messaging           | aio-pika                              |
+| `qdrant`        | Qdrant vector database             | qdrant-client                         |
 | `blob`          | Object storage (MinIO/S3)          | minio                                 |
 | `observability` | Tracing and metrics                | prometheus-client, opentelemetry-api, opentelemetry-sdk, opentelemetry-exporter-otlp, langfuse |
 | `all`           | All of the above                   | db + blob + observability             |
@@ -274,8 +278,10 @@ uv run ruff check . && uv run ruff format --check . && uv run pytest
 - `PostgresProvider` (`asyncpg` pool) for production-like workloads.
 - `RedisCache` (`redis.asyncio`) for key/value cache workflows.
 - `MongoDbResource` (`motor`) for document storage workflows.
+- `RabbitMqBroker` (`aio-pika`) for queue publishing/consumption primitives.
+- `QdrantVectorStore` (`qdrant-client`) for vector indexing/search primitives.
 - SQL providers share a common query API (`execute`, `executemany`, `fetchone`, `fetchall`,
-  `transaction`, `health_check`, `close`), while Redis/MongoDB add lightweight native helpers.
+  `transaction`, `health_check`, `close`), while Redis/MongoDB/RabbitMQ/Qdrant add native helpers.
 
 ## Integration and Migration Docs
 

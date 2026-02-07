@@ -51,6 +51,32 @@ class MongoDbSettings:
 
 
 @dataclass(slots=True)
+class RabbitMqSettings:
+    url: str
+    prefetch_count: int = 50
+    connect_timeout_seconds: float = 10.0
+    heartbeat_seconds: int = 60
+    publisher_confirms: bool = True
+
+
+@dataclass(slots=True)
+class QdrantSettings:
+    url: str | None = None
+    host: str | None = None
+    port: int = 6333
+    grpc_port: int = 6334
+    use_ssl: bool = False
+    api_key: str | None = None
+    timeout_seconds: float = 10.0
+    prefer_grpc: bool = False
+    collection_prefix: str = ""
+
+    def __post_init__(self) -> None:
+        if not self.url and not self.host:
+            raise ValueError("Qdrant requires either url or host")
+
+
+@dataclass(slots=True)
 class MinioSettings:
     endpoint: str
     access_key: str
@@ -162,6 +188,8 @@ class ResourceSettings:
     postgres: PostgresSettings | None = None
     redis: RedisSettings | None = None
     mongodb: MongoDbSettings | None = None
+    rabbitmq: RabbitMqSettings | None = None
+    qdrant: QdrantSettings | None = None
     minio: MinioSettings | None = None
     r2: R2Settings | None = None
     pgvector: PgVectorSettings | None = None
@@ -190,6 +218,20 @@ class ResourceSettings:
         - ORCHID_MONGODB_CONNECT_TIMEOUT_MS
         - ORCHID_MONGODB_PING_TIMEOUT_SECONDS
         - ORCHID_MONGODB_APP_NAME
+        - ORCHID_RABBITMQ_URL
+        - ORCHID_RABBITMQ_PREFETCH_COUNT
+        - ORCHID_RABBITMQ_CONNECT_TIMEOUT_SECONDS
+        - ORCHID_RABBITMQ_HEARTBEAT_SECONDS
+        - ORCHID_RABBITMQ_PUBLISHER_CONFIRMS
+        - ORCHID_QDRANT_URL
+        - ORCHID_QDRANT_HOST
+        - ORCHID_QDRANT_PORT
+        - ORCHID_QDRANT_GRPC_PORT
+        - ORCHID_QDRANT_USE_SSL
+        - ORCHID_QDRANT_API_KEY
+        - ORCHID_QDRANT_TIMEOUT_SECONDS
+        - ORCHID_QDRANT_PREFER_GRPC
+        - ORCHID_QDRANT_COLLECTION_PREFIX
         - ORCHID_MINIO_ENDPOINT
         - ORCHID_MINIO_ACCESS_KEY
         - ORCHID_MINIO_SECRET_KEY
@@ -273,6 +315,33 @@ class ResourceSettings:
                 app_name=env("MONGODB_APP_NAME"),
             )
 
+        rabbitmq = None
+        rabbitmq_url = env("RABBITMQ_URL")
+        if rabbitmq_url:
+            rabbitmq = RabbitMqSettings(
+                url=rabbitmq_url,
+                prefetch_count=int(env("RABBITMQ_PREFETCH_COUNT") or 50),
+                connect_timeout_seconds=float(env("RABBITMQ_CONNECT_TIMEOUT_SECONDS") or 10.0),
+                heartbeat_seconds=int(env("RABBITMQ_HEARTBEAT_SECONDS") or 60),
+                publisher_confirms=env_bool("RABBITMQ_PUBLISHER_CONFIRMS", True),
+            )
+
+        qdrant = None
+        qdrant_url = env("QDRANT_URL")
+        qdrant_host = env("QDRANT_HOST")
+        if qdrant_url or qdrant_host:
+            qdrant = QdrantSettings(
+                url=qdrant_url,
+                host=qdrant_host,
+                port=int(env("QDRANT_PORT") or 6333),
+                grpc_port=int(env("QDRANT_GRPC_PORT") or 6334),
+                use_ssl=env_bool("QDRANT_USE_SSL", False),
+                api_key=env("QDRANT_API_KEY"),
+                timeout_seconds=float(env("QDRANT_TIMEOUT_SECONDS") or 10.0),
+                prefer_grpc=env_bool("QDRANT_PREFER_GRPC", False),
+                collection_prefix=env("QDRANT_COLLECTION_PREFIX") or "",
+            )
+
         minio = None
         minio_endpoint = env("MINIO_ENDPOINT")
         minio_access_key = env("MINIO_ACCESS_KEY")
@@ -319,6 +388,8 @@ class ResourceSettings:
             postgres=postgres,
             redis=redis,
             mongodb=mongodb,
+            rabbitmq=rabbitmq,
+            qdrant=qdrant,
             minio=minio,
             r2=r2,
             pgvector=pgvector,
@@ -366,6 +437,30 @@ class ResourceSettings:
                 app_name=resources.mongodb.app_name,
             )
 
+        rabbitmq = None
+        if resources.rabbitmq is not None:
+            rabbitmq = RabbitMqSettings(
+                url=resources.rabbitmq.url,
+                prefetch_count=resources.rabbitmq.prefetch_count,
+                connect_timeout_seconds=resources.rabbitmq.connect_timeout_seconds,
+                heartbeat_seconds=resources.rabbitmq.heartbeat_seconds,
+                publisher_confirms=resources.rabbitmq.publisher_confirms,
+            )
+
+        qdrant = None
+        if resources.qdrant is not None:
+            qdrant = QdrantSettings(
+                url=resources.qdrant.url,
+                host=resources.qdrant.host,
+                port=resources.qdrant.port,
+                grpc_port=resources.qdrant.grpc_port,
+                use_ssl=resources.qdrant.use_ssl,
+                api_key=resources.qdrant.api_key,
+                timeout_seconds=resources.qdrant.timeout_seconds,
+                prefer_grpc=resources.qdrant.prefer_grpc,
+                collection_prefix=resources.qdrant.collection_prefix,
+            )
+
         minio = None
         if resources.minio is not None:
             minio = MinioSettings(
@@ -396,6 +491,8 @@ class ResourceSettings:
             postgres=postgres,
             redis=redis,
             mongodb=mongodb,
+            rabbitmq=rabbitmq,
+            qdrant=qdrant,
             minio=minio,
             r2=r2,
             pgvector=None,

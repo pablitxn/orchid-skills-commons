@@ -34,7 +34,7 @@ class TestResourceManager:
 
         assert not manager.has("test")
 
-    def test_builtin_factories_include_redis_and_mongodb(self) -> None:
+    def test_builtin_factories_include_data_and_queue_resources(self) -> None:
         original_factories = dict(manager_module._RESOURCE_FACTORIES)
         original_registered = manager_module._BUILTIN_FACTORIES_REGISTERED
         try:
@@ -42,7 +42,15 @@ class TestResourceManager:
             manager_module._BUILTIN_FACTORIES_REGISTERED = False
             manager_module._ensure_builtin_factories()
 
-            assert {"sqlite", "postgres", "redis", "mongodb", "minio"}.issubset(
+            assert {
+                "sqlite",
+                "postgres",
+                "redis",
+                "mongodb",
+                "rabbitmq",
+                "qdrant",
+                "minio",
+            }.issubset(
                 manager_module._RESOURCE_FACTORIES.keys()
             )
         finally:
