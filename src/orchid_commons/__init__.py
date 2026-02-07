@@ -26,44 +26,13 @@ from orchid_commons.config import (
     PlaceholderResolutionError,
     load_config,
 )
-from orchid_commons.errors import (
-    MissingRequiredResourceError,
-    ResourceNotFoundError,
-    ShutdownError,
-)
-from orchid_commons.health import (
-    HealthReport,
-    HealthStatus,
-    Resource,
-    aggregate_health_checks,
-)
-from orchid_commons.logging import (
-    CorrelationIds,
-    bootstrap_logging,
-    bootstrap_logging_from_app_settings,
-    correlation_scope,
-    correlation_scope_from_headers,
-    extract_correlation_ids,
-    get_correlation_ids,
-    parse_traceparent,
-)
-from orchid_commons.manager import (
-    ResourceManager,
-    bootstrap_resources,
-    register_factory,
-)
-from orchid_commons.metrics import (
-    MetricsRecorder,
-    NoopMetricsRecorder,
-    PrometheusHttpServer,
-    PrometheusMetricsRecorder,
-    configure_prometheus_metrics,
-    create_prometheus_asgi_app,
-    get_metrics_recorder,
-    prometheus_content_type,
-    render_prometheus_metrics,
-    set_metrics_recorder,
-    start_prometheus_http_server,
+from orchid_commons.config.resources import (
+    MinioSettings,
+    PgVectorSettings,
+    PostgresSettings,
+    R2Settings,
+    ResourceSettings,
+    SqliteSettings,
 )
 from orchid_commons.observability import (
     LangfuseClient,
@@ -81,13 +50,44 @@ from orchid_commons.observability import (
     shutdown_observability,
     start_span,
 )
-from orchid_commons.settings import (
-    MinioSettings,
-    PgVectorSettings,
-    PostgresSettings,
-    R2Settings,
-    ResourceSettings,
-    SqliteSettings,
+from orchid_commons.observability.logging import (
+    CorrelationIds,
+    bootstrap_logging,
+    bootstrap_logging_from_app_settings,
+    correlation_scope,
+    correlation_scope_from_headers,
+    extract_correlation_ids,
+    get_correlation_ids,
+    parse_traceparent,
+)
+from orchid_commons.observability.metrics import (
+    MetricsRecorder,
+    NoopMetricsRecorder,
+    PrometheusHttpServer,
+    PrometheusMetricsRecorder,
+    configure_prometheus_metrics,
+    create_prometheus_asgi_app,
+    get_metrics_recorder,
+    prometheus_content_type,
+    render_prometheus_metrics,
+    set_metrics_recorder,
+    start_prometheus_http_server,
+)
+from orchid_commons.runtime.errors import (
+    MissingRequiredResourceError,
+    ResourceNotFoundError,
+    ShutdownError,
+)
+from orchid_commons.runtime.health import (
+    HealthReport,
+    HealthStatus,
+    Resource,
+    aggregate_health_checks,
+)
+from orchid_commons.runtime.manager import (
+    ResourceManager,
+    bootstrap_resources,
+    register_factory,
 )
 from orchid_commons.sql import (
     PostgresProvider,

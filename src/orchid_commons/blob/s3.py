@@ -10,10 +10,10 @@ from io import BytesIO
 from time import perf_counter
 from typing import Any, Literal, Protocol, runtime_checkable
 
-from orchid_commons.errors import MissingDependencyError, OrchidCommonsError
-from orchid_commons.health import HealthStatus
-from orchid_commons.metrics import MetricsRecorder, get_metrics_recorder
-from orchid_commons.settings import MinioSettings, R2Settings
+from orchid_commons.config.resources import MinioSettings, R2Settings
+from orchid_commons.observability.metrics import MetricsRecorder, get_metrics_recorder
+from orchid_commons.runtime.errors import MissingDependencyError, OrchidCommonsError
+from orchid_commons.runtime.health import HealthStatus
 
 _DEFAULT_PRESIGN_EXPIRY = timedelta(minutes=15)
 _NOT_FOUND_CODES = {"NoSuchBucket", "NoSuchKey", "NotFound"}

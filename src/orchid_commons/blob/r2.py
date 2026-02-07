@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from orchid_commons.blob.minio import MinioProfile, SupportsBucketBootstrapClient
-from orchid_commons.errors import MissingDependencyError
-from orchid_commons.manager import register_factory
-from orchid_commons.settings import R2Settings
+from orchid_commons.config.resources import R2Settings
+from orchid_commons.runtime.errors import MissingDependencyError
+from orchid_commons.runtime.manager import register_factory
 
 
 def _build_r2_client(settings: R2Settings) -> SupportsBucketBootstrapClient:

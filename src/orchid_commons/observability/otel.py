@@ -7,8 +7,12 @@ from contextlib import asynccontextmanager, contextmanager
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from orchid_commons.errors import MissingDependencyError
-from orchid_commons.metrics import MetricsRecorder, get_metrics_recorder, set_metrics_recorder
+from orchid_commons.observability.metrics import (
+    MetricsRecorder,
+    get_metrics_recorder,
+    set_metrics_recorder,
+)
+from orchid_commons.runtime.errors import MissingDependencyError
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Iterator, Mapping

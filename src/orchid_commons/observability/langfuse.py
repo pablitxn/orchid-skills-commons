@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from functools import wraps
 from typing import TYPE_CHECKING, Any, Literal, Protocol, TypeVar, cast
 
-from orchid_commons.errors import MissingDependencyError
+from orchid_commons.runtime.errors import MissingDependencyError
 
 if TYPE_CHECKING:
     from contextlib import AbstractContextManager
