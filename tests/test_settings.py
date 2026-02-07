@@ -7,7 +7,13 @@ from pathlib import Path
 import pytest
 
 from orchid_commons.config import load_config
-from orchid_commons.settings import MinioSettings, R2Settings, ResourceSettings
+from orchid_commons.settings import (
+    MongoDbSettings,
+    MinioSettings,
+    R2Settings,
+    RedisSettings,
+    ResourceSettings,
+)
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures" / "config"
 
@@ -56,6 +62,41 @@ class TestResourceSettings:
 
         assert resources.r2 is not None
         assert resources.r2.resolved_endpoint == "account-123.r2.cloudflarestorage.com"
+
+    def test_from_app_settings_maps_redis_and_mongodb(self, tmp_path: Path) -> None:
+        config_file = tmp_path / "appsettings.json"
+        config_file.write_text(
+            """
+            {
+              "service": {"name": "svc", "version": "1.0"},
+              "resources": {
+                "redis": {
+                  "url": "redis://localhost:6379/1",
+                  "key_prefix": "svc",
+                  "default_ttl_seconds": 60
+                },
+                "mongodb": {
+                  "uri": "mongodb://localhost:27017",
+                  "database": "orchid",
+                  "app_name": "orchid-tests"
+                }
+              }
+            }
+            """,
+            encoding="utf-8",
+        )
+
+        app_settings = load_config(config_dir=tmp_path)
+        resources = ResourceSettings.from_app_settings(app_settings)
+
+        assert resources.redis is not None
+        assert resources.redis.url == "redis://localhost:6379/1"
+        assert resources.redis.key_prefix == "svc"
+        assert resources.redis.default_ttl_seconds == 60
+        assert resources.mongodb is not None
+        assert resources.mongodb.uri == "mongodb://localhost:27017"
+        assert resources.mongodb.database == "orchid"
+        assert resources.mongodb.app_name == "orchid-tests"
 
 
 class TestR2Settings:
@@ -128,6 +169,34 @@ class TestResourceSettingsFromEnv:
         assert settings.minio.endpoint == "localhost:9000"
         assert settings.minio.bucket == "assets"
         assert settings.minio.create_bucket_if_missing is True
+
+    def test_loads_redis_from_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("TEST_REDIS_URL", "redis://localhost:6379/2")
+        monkeypatch.setenv("TEST_REDIS_KEY_PREFIX", "orchid")
+        monkeypatch.setenv("TEST_REDIS_DEFAULT_TTL_SECONDS", "45")
+        monkeypatch.setenv("TEST_REDIS_DECODE_RESPONSES", "false")
+
+        settings = ResourceSettings.from_env(prefix="TEST_")
+
+        assert settings.redis is not None
+        assert isinstance(settings.redis, RedisSettings)
+        assert settings.redis.url == "redis://localhost:6379/2"
+        assert settings.redis.key_prefix == "orchid"
+        assert settings.redis.default_ttl_seconds == 45
+        assert settings.redis.decode_responses is False
+
+    def test_loads_mongodb_from_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("TEST_MONGODB_URI", "mongodb://localhost:27017")
+        monkeypatch.setenv("TEST_MONGODB_DATABASE", "orchid")
+        monkeypatch.setenv("TEST_MONGODB_APP_NAME", "orchid-tests")
+
+        settings = ResourceSettings.from_env(prefix="TEST_")
+
+        assert settings.mongodb is not None
+        assert isinstance(settings.mongodb, MongoDbSettings)
+        assert settings.mongodb.uri == "mongodb://localhost:27017"
+        assert settings.mongodb.database == "orchid"
+        assert settings.mongodb.app_name == "orchid-tests"
 
 
 class TestMinioSettings:

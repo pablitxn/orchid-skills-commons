@@ -9,7 +9,7 @@ import pytest
 
 from orchid_commons import ResourceManager
 from orchid_commons.settings import PostgresSettings, ResourceSettings
-from orchid_commons.sql import PostgresProvider, create_postgres_provider
+from orchid_commons.db import PostgresProvider, create_postgres_provider
 
 
 class FakeTransaction:

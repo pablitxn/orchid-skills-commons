@@ -12,7 +12,7 @@ from orchid_commons.observability.otel import (
     request_span,
     shutdown_observability,
 )
-from orchid_commons.sql import create_sqlite_resource
+from orchid_commons.db import create_sqlite_resource
 
 pytestmark = pytest.mark.integration
 

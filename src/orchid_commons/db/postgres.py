@@ -24,7 +24,7 @@ def _import_asyncpg() -> Any:
     except ImportError as exc:  # pragma: no cover - exercised when extras are absent
         raise MissingDependencyError(
             "PostgreSQL provider requires optional dependency 'asyncpg'. "
-            "Install with: uv sync --extra sql"
+            "Install with: uv sync --extra sql (or --extra db)"
         ) from exc
     return asyncpg
 

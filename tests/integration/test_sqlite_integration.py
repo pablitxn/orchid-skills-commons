@@ -7,7 +7,7 @@ from contextlib import suppress
 import aiosqlite
 import pytest
 
-from orchid_commons.sql import create_sqlite_resource
+from orchid_commons.db import create_sqlite_resource
 
 pytestmark = pytest.mark.integration
 

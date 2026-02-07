@@ -7,7 +7,7 @@ import pytest
 
 from orchid_commons import ResourceManager
 from orchid_commons.settings import ResourceSettings, SqliteSettings
-from orchid_commons.sql import SqliteResource, create_sqlite_resource
+from orchid_commons.db import SqliteResource, create_sqlite_resource
 
 
 class TestSqliteResource:

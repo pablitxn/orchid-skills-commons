@@ -29,6 +29,28 @@ class PostgresSettings:
 
 
 @dataclass(slots=True)
+class RedisSettings:
+    url: str
+    key_prefix: str = ""
+    default_ttl_seconds: int | None = None
+    encoding: str = "utf-8"
+    decode_responses: bool = True
+    socket_timeout_seconds: float | None = 5.0
+    connect_timeout_seconds: float | None = 5.0
+    health_check_interval_seconds: float = 15.0
+
+
+@dataclass(slots=True)
+class MongoDbSettings:
+    uri: str
+    database: str
+    server_selection_timeout_ms: int = 2000
+    connect_timeout_ms: int = 2000
+    ping_timeout_seconds: float = 2.0
+    app_name: str | None = None
+
+
+@dataclass(slots=True)
 class MinioSettings:
     endpoint: str
     access_key: str
@@ -138,6 +160,8 @@ class PgVectorSettings:
 class ResourceSettings:
     sqlite: SqliteSettings | None = None
     postgres: PostgresSettings | None = None
+    redis: RedisSettings | None = None
+    mongodb: MongoDbSettings | None = None
     minio: MinioSettings | None = None
     r2: R2Settings | None = None
     pgvector: PgVectorSettings | None = None
@@ -152,6 +176,20 @@ class ResourceSettings:
         - ORCHID_POSTGRES_MIN_POOL_SIZE
         - ORCHID_POSTGRES_MAX_POOL_SIZE
         - ORCHID_POSTGRES_COMMAND_TIMEOUT_SECONDS
+        - ORCHID_REDIS_URL
+        - ORCHID_REDIS_KEY_PREFIX
+        - ORCHID_REDIS_DEFAULT_TTL_SECONDS
+        - ORCHID_REDIS_ENCODING
+        - ORCHID_REDIS_DECODE_RESPONSES
+        - ORCHID_REDIS_SOCKET_TIMEOUT_SECONDS
+        - ORCHID_REDIS_CONNECT_TIMEOUT_SECONDS
+        - ORCHID_REDIS_HEALTH_CHECK_INTERVAL_SECONDS
+        - ORCHID_MONGODB_URI
+        - ORCHID_MONGODB_DATABASE
+        - ORCHID_MONGODB_SERVER_SELECTION_TIMEOUT_MS
+        - ORCHID_MONGODB_CONNECT_TIMEOUT_MS
+        - ORCHID_MONGODB_PING_TIMEOUT_SECONDS
+        - ORCHID_MONGODB_APP_NAME
         - ORCHID_MINIO_ENDPOINT
         - ORCHID_MINIO_ACCESS_KEY
         - ORCHID_MINIO_SECRET_KEY
@@ -197,6 +235,44 @@ class ResourceSettings:
                 command_timeout_seconds=float(env("POSTGRES_COMMAND_TIMEOUT_SECONDS") or 60.0),
             )
 
+        redis = None
+        redis_url = env("REDIS_URL")
+        if redis_url:
+            default_ttl = env("REDIS_DEFAULT_TTL_SECONDS")
+            socket_timeout = env("REDIS_SOCKET_TIMEOUT_SECONDS")
+            connect_timeout = env("REDIS_CONNECT_TIMEOUT_SECONDS")
+            redis = RedisSettings(
+                url=redis_url,
+                key_prefix=env("REDIS_KEY_PREFIX") or "",
+                default_ttl_seconds=(int(default_ttl) if default_ttl is not None else None),
+                encoding=env("REDIS_ENCODING") or "utf-8",
+                decode_responses=env_bool("REDIS_DECODE_RESPONSES", True),
+                socket_timeout_seconds=(
+                    float(socket_timeout) if socket_timeout is not None else None
+                ),
+                connect_timeout_seconds=(
+                    float(connect_timeout) if connect_timeout is not None else None
+                ),
+                health_check_interval_seconds=float(
+                    env("REDIS_HEALTH_CHECK_INTERVAL_SECONDS") or 15.0
+                ),
+            )
+
+        mongodb = None
+        mongodb_uri = env("MONGODB_URI")
+        mongodb_database = env("MONGODB_DATABASE")
+        if mongodb_uri and mongodb_database:
+            mongodb = MongoDbSettings(
+                uri=mongodb_uri,
+                database=mongodb_database,
+                server_selection_timeout_ms=int(
+                    env("MONGODB_SERVER_SELECTION_TIMEOUT_MS") or 2000
+                ),
+                connect_timeout_ms=int(env("MONGODB_CONNECT_TIMEOUT_MS") or 2000),
+                ping_timeout_seconds=float(env("MONGODB_PING_TIMEOUT_SECONDS") or 2.0),
+                app_name=env("MONGODB_APP_NAME"),
+            )
+
         minio = None
         minio_endpoint = env("MINIO_ENDPOINT")
         minio_access_key = env("MINIO_ACCESS_KEY")
@@ -238,7 +314,15 @@ class ResourceSettings:
                 ivfflat_lists=int(env("PGVECTOR_IVFFLAT_LISTS") or 100),
             )
 
-        return cls(sqlite=sqlite, postgres=postgres, minio=minio, r2=r2, pgvector=pgvector)
+        return cls(
+            sqlite=sqlite,
+            postgres=postgres,
+            redis=redis,
+            mongodb=mongodb,
+            minio=minio,
+            r2=r2,
+            pgvector=pgvector,
+        )
 
     @classmethod
     def from_app_settings(cls, app_settings: AppSettings) -> ResourceSettings:
@@ -256,6 +340,30 @@ class ResourceSettings:
                 min_pool_size=resources.postgres.min_pool_size,
                 max_pool_size=resources.postgres.max_pool_size,
                 command_timeout_seconds=resources.postgres.command_timeout_seconds,
+            )
+
+        redis = None
+        if resources.redis is not None:
+            redis = RedisSettings(
+                url=resources.redis.url,
+                key_prefix=resources.redis.key_prefix,
+                default_ttl_seconds=resources.redis.default_ttl_seconds,
+                encoding=resources.redis.encoding,
+                decode_responses=resources.redis.decode_responses,
+                socket_timeout_seconds=resources.redis.socket_timeout_seconds,
+                connect_timeout_seconds=resources.redis.connect_timeout_seconds,
+                health_check_interval_seconds=resources.redis.health_check_interval_seconds,
+            )
+
+        mongodb = None
+        if resources.mongodb is not None:
+            mongodb = MongoDbSettings(
+                uri=resources.mongodb.uri,
+                database=resources.mongodb.database,
+                server_selection_timeout_ms=resources.mongodb.server_selection_timeout_ms,
+                connect_timeout_ms=resources.mongodb.connect_timeout_ms,
+                ping_timeout_seconds=resources.mongodb.ping_timeout_seconds,
+                app_name=resources.mongodb.app_name,
             )
 
         minio = None
@@ -283,4 +391,12 @@ class ResourceSettings:
                 region=resources.r2.region,
             )
 
-        return cls(sqlite=sqlite, postgres=postgres, minio=minio, r2=r2, pgvector=None)
+        return cls(
+            sqlite=sqlite,
+            postgres=postgres,
+            redis=redis,
+            mongodb=mongodb,
+            minio=minio,
+            r2=r2,
+            pgvector=None,
+        )

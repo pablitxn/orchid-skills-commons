@@ -16,8 +16,19 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+db = [
+  "asyncpg>=0.29.0",
+  "redis>=5.0.0",
+  "motor>=3.6.0",
+]
 sql = [
   "asyncpg>=0.29.0",
+]
+redis = [
+  "redis>=5.0.0",
+]
+mongodb = [
+  "motor>=3.6.0",
 ]
 blob = [
   "minio>=7.2.0",
@@ -30,7 +41,7 @@ observability = [
   "langfuse>=3.0.0",
 ]
 all = [
-  "orchid-skills-commons[sql,blob,observability]",
+  "orchid-skills-commons[db,blob,observability]",
 ]
 dev = [
   "pytest>=8.3.0",
