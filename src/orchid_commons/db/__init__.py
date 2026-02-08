@@ -1,5 +1,14 @@
 """Database providers."""
 
+from orchid_commons.db.document import (
+    DocumentAuthError,
+    DocumentNotFoundError,
+    DocumentOperationError,
+    DocumentStore,
+    DocumentStoreError,
+    DocumentTransientError,
+    DocumentValidationError,
+)
 from orchid_commons.db.mongodb import MongoDbResource, create_mongodb_resource
 from orchid_commons.db.postgres import PostgresProvider, create_postgres_provider
 from orchid_commons.db.qdrant import QdrantVectorStore, create_qdrant_vector_store
@@ -19,6 +28,13 @@ from orchid_commons.db.vector import (
 )
 
 __all__ = [
+    "DocumentAuthError",
+    "DocumentNotFoundError",
+    "DocumentOperationError",
+    "DocumentStore",
+    "DocumentStoreError",
+    "DocumentTransientError",
+    "DocumentValidationError",
     "MongoDbResource",
     "PostgresProvider",
     "QdrantVectorStore",

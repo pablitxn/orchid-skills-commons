@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+from collections.abc import Callable
 from contextlib import asynccontextmanager, contextmanager
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
@@ -376,7 +377,7 @@ def request_span(
     method: str | None = None,
     route: str | None = None,
     request_id: str | None = None,
-    status_code: int | None = None,
+    status_code: int | None | Callable[[], int | None] = None,
     attributes: Mapping[str, AttributeValue | None] | None = None,
 ) -> Iterator[Any | None]:
     """Instrument a request-like operation with base span and metrics."""
@@ -392,19 +393,25 @@ def request_span(
             yield span
         except Exception as exc:
             _mark_span_error(span, exc)
+            resolved_status_code = _resolve_status_code(status_code)
+            if resolved_status_code is not None and span is not None:
+                span.set_attribute("http.status_code", resolved_status_code)
             _record_request_metrics(
                 method=method,
                 route=route,
-                status_code=status_code,
+                status_code=resolved_status_code,
                 duration_seconds=time.perf_counter() - started,
                 success=False,
             )
             raise
         else:
+            resolved_status_code = _resolve_status_code(status_code)
+            if resolved_status_code is not None and span is not None:
+                span.set_attribute("http.status_code", resolved_status_code)
             _record_request_metrics(
                 method=method,
                 route=route,
-                status_code=status_code,
+                status_code=resolved_status_code,
                 duration_seconds=time.perf_counter() - started,
                 success=True,
             )
@@ -564,6 +571,26 @@ def _record_request_metrics(
 
     instruments.total.add(1, attributes=attributes)
     instruments.duration_seconds.record(max(0.0, duration_seconds), attributes=attributes)
+
+
+def _resolve_status_code(
+    status_code: int | None | Callable[[], int | None],
+) -> int | None:
+    value: int | None
+    if callable(status_code):
+        try:
+            value = status_code()
+        except Exception:
+            return None
+    else:
+        value = status_code
+
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def _mark_span_error(span: Any | None, exc: Exception) -> None:

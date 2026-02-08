@@ -117,6 +117,9 @@ class FakeCollection:
                 return FakeDeleteResult(deleted_count=1)
         return FakeDeleteResult(deleted_count=0)
 
+    async def count_documents(self, query: dict[str, Any]) -> int:
+        return sum(1 for doc in self.documents if _matches(doc, query))
+
 
 class FakeDatabase:
     def __init__(self) -> None:
@@ -218,3 +221,35 @@ class TestMongoDbResource:
 
         assert status.healthy is False
         assert status.details == {"error_type": "RuntimeError", "database": "orchid"}
+
+    async def test_count(self) -> None:
+        database = FakeDatabase()
+        resource = MongoDbResource(
+            _client=FakeMongoClient(database),
+            _database=database,
+            database_name="orchid",
+        )
+
+        await resource.insert_one("skills", {"name": "a", "kind": "bot"})
+        await resource.insert_one("skills", {"name": "b", "kind": "bot"})
+        await resource.insert_one("skills", {"name": "c", "kind": "project"})
+
+        total = await resource.count("skills")
+        bots = await resource.count("skills", {"kind": "bot"})
+        empty = await resource.count("empty_collection")
+
+        assert total == 3
+        assert bots == 2
+        assert empty == 0
+
+    def test_implements_document_store_protocol(self) -> None:
+        from orchid_commons.db.document import DocumentStore
+
+        database = FakeDatabase()
+        resource = MongoDbResource(
+            _client=FakeMongoClient(database),
+            _database=database,
+            database_name="orchid",
+        )
+
+        assert isinstance(resource, DocumentStore)

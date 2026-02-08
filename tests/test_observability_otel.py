@@ -333,3 +333,29 @@ def test_request_span_records_success_and_error_metrics(monkeypatch: pytest.Monk
             raise RuntimeError("boom")
 
     assert request_total.calls[1][2]["status"] == "error"
+
+
+def test_request_span_resolves_status_code_lazily(monkeypatch: pytest.MonkeyPatch) -> None:
+    trace_module = FakeTraceModule()
+    request_total = FakeInstrument()
+    request_duration = FakeInstrument()
+    status_holder: dict[str, int | None] = {"value": None}
+
+    monkeypatch.setattr(otel, "_import_otel_api_trace_module", lambda: trace_module)
+    monkeypatch.setattr(
+        otel,
+        "_ensure_request_instruments",
+        lambda: otel._RequestInstruments(total=request_total, duration_seconds=request_duration),
+    )
+
+    with otel.request_span(
+        "http.request",
+        method="PATCH",
+        route="/lazy-status",
+        status_code=lambda: status_holder["value"],
+    ):
+        status_holder["value"] = 204
+
+    assert request_total.calls[0][2]["http.status_code"] == 204
+    span = trace_module.tracer.spans[-1]
+    assert span.attributes["http.status_code"] == 204

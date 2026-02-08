@@ -51,3 +51,10 @@ At request boundaries, extract and bind correlation IDs before handling business
 - `x-request-id`, `request-id`, or `x-correlation-id`
 - `x-trace-id` / `x-span-id`
 - `traceparent` (W3C), used as fallback source for `trace_id` and `span_id`
+
+`orchid_commons` now includes HTTP helpers to avoid custom middleware wiring:
+
+- FastAPI middleware: `create_fastapi_observability_middleware`
+- FastAPI dependency: `create_fastapi_correlation_dependency`
+- aiohttp middleware: `create_aiohttp_observability_middleware`
+- Generic hook: `http_request_scope`

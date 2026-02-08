@@ -133,6 +133,67 @@ with request_span("http.request", method="GET", route="/health"):
     ...
 ```
 
+## HTTP Correlation + Request Spans
+
+`orchid_commons` provides framework helpers to bind `request_id` / `trace_id` / `span_id`
+and emit request spans with minimal boilerplate.
+
+### FastAPI middleware
+
+```python
+from fastapi import FastAPI
+
+from orchid_commons import create_fastapi_observability_middleware
+
+app = FastAPI()
+app.middleware("http")(create_fastapi_observability_middleware())
+```
+
+### FastAPI dependency (correlation only)
+
+```python
+from fastapi import Depends, FastAPI
+
+from orchid_commons import create_fastapi_correlation_dependency
+
+app = FastAPI()
+correlation_dependency = create_fastapi_correlation_dependency()
+
+@app.get("/health")
+async def health(_: object = Depends(correlation_dependency)) -> dict[str, bool]:
+    return {"ok": True}
+```
+
+### aiohttp middleware
+
+```python
+from aiohttp import web
+
+from orchid_commons import create_aiohttp_observability_middleware
+
+app = web.Application(
+    middlewares=[
+        create_aiohttp_observability_middleware(),
+    ]
+)
+```
+
+### Generic HTTP hook
+
+```python
+from orchid_commons import http_request_scope
+
+status_code: int | None = None
+with http_request_scope(
+    method=request.method,
+    route=request.path,
+    headers=request.headers,
+    status_code=lambda: status_code,
+) as correlation:
+    response = await handler(request)
+    status_code = response.status
+```
+
 ## Aggregated health checks (`/health`)
 
 `ResourceManager` can aggregate readiness/liveness checks across all registered resources and

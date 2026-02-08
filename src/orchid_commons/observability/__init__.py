@@ -1,5 +1,11 @@
 """Observability helpers for tracing and telemetry backends."""
 
+from orchid_commons.observability.http import (
+    create_aiohttp_observability_middleware,
+    create_fastapi_correlation_dependency,
+    create_fastapi_observability_middleware,
+    http_request_scope,
+)
 from orchid_commons.observability.langfuse import (
     LangfuseClient,
     LangfuseClientSettings,
@@ -26,9 +32,13 @@ __all__ = [
     "OpenTelemetryMetricsRecorder",
     "OtlpRetrySettings",
     "bootstrap_observability",
+    "create_aiohttp_observability_middleware",
+    "create_fastapi_correlation_dependency",
+    "create_fastapi_observability_middleware",
     "create_langfuse_client",
     "get_default_langfuse_client",
     "get_observability_handle",
+    "http_request_scope",
     "request_span",
     "request_span_async",
     "set_default_langfuse_client",

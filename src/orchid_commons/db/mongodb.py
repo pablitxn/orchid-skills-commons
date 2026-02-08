@@ -177,6 +177,23 @@ class MongoDbResource:
         self._observe_operation("delete_one", started, success=True)
         return int(result.deleted_count)
 
+    async def count(
+        self,
+        collection: str,
+        query: dict[str, Any] | None = None,
+    ) -> int:
+        """Return document count for a collection, optionally filtered by query."""
+        started = perf_counter()
+        try:
+            filter_query = query or {}
+            result = await self.collection(collection).count_documents(filter_query)
+        except Exception as exc:
+            self._observe_error("count", started, exc)
+            raise
+
+        self._observe_operation("count", started, success=True)
+        return int(result)
+
     async def health_check(self) -> HealthStatus:
         """Verify MongoDB liveness with a ping command."""
         start = perf_counter()

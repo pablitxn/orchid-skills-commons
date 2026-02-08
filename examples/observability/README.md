@@ -39,6 +39,11 @@ Grafana provisions:
 3. Demo app sends OTLP traces (and OTLP metrics) to `otel-collector:4317`.
 4. OTel Collector forwards traces to Jaeger.
 
+## HTTP framework snippets
+
+- FastAPI example: `examples/observability/http/fastapi_app.py`
+- aiohttp example: `examples/observability/http/aiohttp_app.py`
+
 ## Quick verification
 
 1. Open Grafana and load dashboard **Orchid Commons Local Observability**.
