@@ -306,6 +306,28 @@ class R2Settings(BaseModel):
         return f"{scheme}://{self.resolved_endpoint}"
 
 
+class MultiBucketSettings(BaseModel):
+    """Multi-bucket blob storage settings with logical alias mapping.
+
+    Allows consumers to reference buckets by logical names (e.g., 'videos', 'chunks')
+    instead of physical bucket names, enabling easy bucket management and renaming.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    endpoint: str = Field(..., min_length=1, description="S3-compatible endpoint")
+    access_key: str = Field(..., min_length=1, description="Access key")
+    secret_key: str = Field(..., min_length=1, description="Secret key")
+    buckets: dict[str, str] = Field(
+        ..., min_length=1, description="Mapping of logical aliases to bucket names"
+    )
+    create_buckets_if_missing: bool = Field(
+        default=False, description="Create buckets on startup when missing"
+    )
+    secure: bool = Field(default=False, description="Use HTTPS")
+    region: str | None = Field(default=None, description="AWS region")
+
+
 class ResourcesSettings(BaseModel):
     """External resource connections."""
 
@@ -319,6 +341,7 @@ class ResourcesSettings(BaseModel):
     qdrant: QdrantSettings | None = Field(default=None)
     minio: MinioSettings | None = Field(default=None)
     r2: R2Settings | None = Field(default=None)
+    multi_bucket: MultiBucketSettings | None = Field(default=None)
 
 
 class AppSettings(BaseModel):

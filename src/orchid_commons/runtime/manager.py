@@ -335,6 +335,7 @@ def _ensure_builtin_factories() -> None:
         return
 
     from orchid_commons.blob.minio import create_minio_profile
+    from orchid_commons.blob.router import create_multi_bucket_router
     from orchid_commons.db import (
         create_mongodb_resource,
         create_postgres_provider,
@@ -358,6 +359,8 @@ def _ensure_builtin_factories() -> None:
         register_factory("qdrant", "qdrant", create_qdrant_vector_store)
     if "minio" not in _RESOURCE_FACTORIES:
         register_factory("minio", "minio", create_minio_profile)
+    if "multi_bucket" not in _RESOURCE_FACTORIES:
+        register_factory("multi_bucket", "multi_bucket", create_multi_bucket_router)
     _BUILTIN_FACTORIES_REGISTERED = True
 
 

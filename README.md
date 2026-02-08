@@ -283,6 +283,24 @@ uv run ruff check . && uv run ruff format --check . && uv run pytest
 - SQL providers share a common query API (`execute`, `executemany`, `fetchone`, `fetchall`,
   `transaction`, `health_check`, `close`), while Redis/MongoDB/RabbitMQ/Qdrant add native helpers.
 
+### Vector contract (shared)
+
+`QdrantVectorStore` implements a common vector contract (`VectorStore`) with:
+
+- `upsert(collection_name, points) -> int`
+- `search(collection_name, query_vector, *, limit=10, filters=None, score_threshold=None, with_payload=True, with_vectors=False) -> list[VectorSearchResult]`
+- `delete(collection_name, *, ids=None, filters=None) -> int`
+- `count(collection_name, *, filters=None) -> int`
+- `health_check() -> HealthStatus`
+- `close() -> None`
+
+Typed vector errors:
+- `VectorAuthError`
+- `VectorNotFoundError`
+- `VectorTransientError`
+- `VectorValidationError`
+- `VectorOperationError`
+
 ## Integration and Migration Docs
 
 - Playbook Romy + youtube-mcp: `docs/integration-playbook-romy-youtube.md`

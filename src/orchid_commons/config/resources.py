@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 from dataclasses import dataclass
 from pathlib import Path
@@ -74,6 +75,79 @@ class QdrantSettings:
     def __post_init__(self) -> None:
         if not self.url and not self.host:
             raise ValueError("Qdrant requires either url or host")
+
+
+@dataclass(slots=True)
+class BucketAliasMapping:
+    """Maps a logical alias to a physical bucket name."""
+
+    alias: str
+    bucket: str
+
+
+@dataclass(slots=True)
+class MultiBucketSettings:
+    """Configuration for multi-bucket blob routing with logical aliases.
+
+    Allows consumers to reference buckets by logical names (e.g., 'videos', 'chunks')
+    instead of physical bucket names, enabling easy bucket management and renaming.
+    """
+
+    endpoint: str
+    access_key: str
+    secret_key: str
+    buckets: dict[str, str]  # alias -> bucket name mapping
+    create_buckets_if_missing: bool = False
+    secure: bool = False
+    region: str | None = None
+
+    def __post_init__(self) -> None:
+        if not self.buckets:
+            raise ValueError("MultiBucketSettings requires at least one bucket mapping")
+
+    def get_bucket(self, alias: str) -> str:
+        """Resolve alias to physical bucket name."""
+        if alias not in self.buckets:
+            raise KeyError(f"Unknown bucket alias: {alias!r}")
+        return self.buckets[alias]
+
+    def to_s3_client_kwargs(self) -> dict[str, str | bool | None]:
+        """Return kwargs compatible with S3-compatible clients like MinIO."""
+        return {
+            "endpoint": self.endpoint,
+            "access_key": self.access_key,
+            "secret_key": self.secret_key,
+            "secure": self.secure,
+            "region": self.region,
+        }
+
+    def presign_base_url(self) -> str:
+        scheme = "https" if self.secure else "http"
+        return f"{scheme}://{self.endpoint}"
+
+    @classmethod
+    def local_dev(
+        cls,
+        *,
+        buckets: dict[str, str] | None = None,
+        endpoint: str = "localhost:9000",
+        access_key: str = "minioadmin",
+        secret_key: str = "minioadmin",
+        secure: bool = False,
+        region: str | None = None,
+        create_buckets_if_missing: bool = True,
+    ) -> MultiBucketSettings:
+        """Build defaults that work with local docker-compose MinIO."""
+        default_buckets = buckets or {"default": "orchid-dev"}
+        return cls(
+            endpoint=endpoint,
+            access_key=access_key,
+            secret_key=secret_key,
+            buckets=default_buckets,
+            create_buckets_if_missing=create_buckets_if_missing,
+            secure=secure,
+            region=region,
+        )
 
 
 @dataclass(slots=True)
@@ -193,6 +267,7 @@ class ResourceSettings:
     minio: MinioSettings | None = None
     r2: R2Settings | None = None
     pgvector: PgVectorSettings | None = None
+    multi_bucket: MultiBucketSettings | None = None
 
     @classmethod
     def from_env(cls, prefix: str = "ORCHID_") -> ResourceSettings:
@@ -251,6 +326,13 @@ class ResourceSettings:
         - ORCHID_PGVECTOR_DIMENSIONS
         - ORCHID_PGVECTOR_DISTANCE_METRIC
         - ORCHID_PGVECTOR_IVFFLAT_LISTS
+        - ORCHID_MULTI_BUCKET_ENDPOINT
+        - ORCHID_MULTI_BUCKET_ACCESS_KEY
+        - ORCHID_MULTI_BUCKET_SECRET_KEY
+        - ORCHID_MULTI_BUCKET_BUCKETS (JSON: {"alias": "bucket-name", ...})
+        - ORCHID_MULTI_BUCKET_CREATE_BUCKETS_IF_MISSING
+        - ORCHID_MULTI_BUCKET_SECURE
+        - ORCHID_MULTI_BUCKET_REGION
         """
 
         def env(name: str) -> str | None:
@@ -383,6 +465,23 @@ class ResourceSettings:
                 ivfflat_lists=int(env("PGVECTOR_IVFFLAT_LISTS") or 100),
             )
 
+        multi_bucket = None
+        mb_endpoint = env("MULTI_BUCKET_ENDPOINT")
+        mb_access_key = env("MULTI_BUCKET_ACCESS_KEY")
+        mb_secret_key = env("MULTI_BUCKET_SECRET_KEY")
+        mb_buckets_json = env("MULTI_BUCKET_BUCKETS")
+        if mb_endpoint and mb_access_key and mb_secret_key and mb_buckets_json:
+            buckets = json.loads(mb_buckets_json)
+            multi_bucket = MultiBucketSettings(
+                endpoint=mb_endpoint,
+                access_key=mb_access_key,
+                secret_key=mb_secret_key,
+                buckets=buckets,
+                create_buckets_if_missing=env_bool("MULTI_BUCKET_CREATE_BUCKETS_IF_MISSING", False),
+                secure=env_bool("MULTI_BUCKET_SECURE", False),
+                region=env("MULTI_BUCKET_REGION"),
+            )
+
         return cls(
             sqlite=sqlite,
             postgres=postgres,
@@ -393,6 +492,7 @@ class ResourceSettings:
             minio=minio,
             r2=r2,
             pgvector=pgvector,
+            multi_bucket=multi_bucket,
         )
 
     @classmethod
@@ -486,6 +586,18 @@ class ResourceSettings:
                 region=resources.r2.region,
             )
 
+        multi_bucket = None
+        if resources.multi_bucket is not None:
+            multi_bucket = MultiBucketSettings(
+                endpoint=resources.multi_bucket.endpoint,
+                access_key=resources.multi_bucket.access_key,
+                secret_key=resources.multi_bucket.secret_key,
+                buckets=dict(resources.multi_bucket.buckets),
+                create_buckets_if_missing=resources.multi_bucket.create_buckets_if_missing,
+                secure=resources.multi_bucket.secure,
+                region=resources.multi_bucket.region,
+            )
+
         return cls(
             sqlite=sqlite,
             postgres=postgres,
@@ -496,4 +608,5 @@ class ResourceSettings:
             minio=minio,
             r2=r2,
             pgvector=None,
+            multi_bucket=multi_bucket,
         )

@@ -21,6 +21,15 @@ class SupportsBucketBootstrapClient(S3CompatibleClient, Protocol):
         """Create a bucket if missing."""
         ...
 
+    def list_objects(
+        self,
+        bucket_name: str,
+        prefix: str | None = None,
+        recursive: bool = False,
+    ) -> list:
+        """List objects in the bucket."""
+        ...
+
 
 @dataclass(slots=True, frozen=True)
 class BucketBootstrapResult:

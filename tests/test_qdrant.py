@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 import pytest
@@ -10,6 +10,19 @@ import pytest
 import orchid_commons.db.qdrant as qdrant_module
 from orchid_commons.config.resources import QdrantSettings
 from orchid_commons.db.qdrant import QdrantVectorStore, create_qdrant_vector_store
+from orchid_commons.db.vector import (
+    VectorOperationError,
+    VectorPoint,
+    VectorSearchResult,
+    VectorTransientError,
+    VectorValidationError,
+)
+
+
+class FakeQdrantError(Exception):
+    def __init__(self, message: str, *, status_code: int) -> None:
+        self.status_code = status_code
+        super().__init__(message)
 
 
 @dataclass(slots=True)
@@ -20,6 +33,11 @@ class FakeScoredPoint:
     vector: list[float] | None = None
 
 
+@dataclass(slots=True)
+class FakeCountResult:
+    count: int
+
+
 class FakeQdrantAsyncClient:
     def __init__(self, **kwargs: Any) -> None:
         self.kwargs = kwargs
@@ -27,21 +45,37 @@ class FakeQdrantAsyncClient:
         self.upsert_calls: list[tuple[str, list[Any]]] = []
         self.search_calls: list[dict[str, Any]] = []
         self.delete_calls: list[tuple[str, Any]] = []
+        self.count_calls: list[dict[str, Any]] = []
         self.closed = False
         self.fail_health = False
+        self.fail_search: Exception | None = None
+        self.count_responses: list[int] = []
+        self.point_count = 0
 
     async def create_collection(self, *, collection_name: str, vectors_config: Any) -> None:
         self.collections_created.append((collection_name, vectors_config))
 
     async def upsert(self, *, collection_name: str, points: list[Any]) -> None:
         self.upsert_calls.append((collection_name, points))
+        self.point_count += len(points)
 
     async def search(self, **kwargs: Any) -> list[FakeScoredPoint]:
         self.search_calls.append(kwargs)
+        if self.fail_search is not None:
+            raise self.fail_search
         return [FakeScoredPoint(id=1, score=0.99, payload={"doc": "x"}, vector=[0.1, 0.2])]
 
     async def delete(self, *, collection_name: str, points_selector: Any) -> None:
         self.delete_calls.append((collection_name, points_selector))
+        ids = getattr(points_selector, "points", None)
+        if isinstance(ids, list):
+            self.point_count = max(0, self.point_count - len(ids))
+
+    async def count(self, **kwargs: Any) -> FakeCountResult:
+        self.count_calls.append(kwargs)
+        if self.count_responses:
+            return FakeCountResult(count=self.count_responses.pop(0))
+        return FakeCountResult(count=self.point_count)
 
     async def get_collections(self) -> dict[str, list[Any]]:
         if self.fail_health:
@@ -77,11 +111,52 @@ class FakePointIdsList:
     points: list[int | str]
 
 
+@dataclass(slots=True)
+class FakeRange:
+    gte: float | int | None = None
+    gt: float | int | None = None
+    lte: float | int | None = None
+    lt: float | int | None = None
+
+
+@dataclass(slots=True)
+class FakeMatchAny:
+    any: list[Any]
+
+
+@dataclass(slots=True)
+class FakeMatchValue:
+    value: Any
+
+
+@dataclass(slots=True)
+class FakeFieldCondition:
+    key: str
+    range: FakeRange | None = None
+    match: FakeMatchAny | FakeMatchValue | None = None
+
+
+@dataclass(slots=True)
+class FakeFilter:
+    must: list[FakeFieldCondition] = field(default_factory=list)
+
+
+@dataclass(slots=True)
+class FakeFilterSelector:
+    filter: FakeFilter
+
+
 class FakeQdrantModels:
     Distance = FakeDistance
     VectorParams = FakeVectorParams
     PointStruct = FakePointStruct
     PointIdsList = FakePointIdsList
+    Range = FakeRange
+    MatchAny = FakeMatchAny
+    MatchValue = FakeMatchValue
+    FieldCondition = FakeFieldCondition
+    Filter = FakeFilter
+    FilterSelector = FakeFilterSelector
 
 
 class FakeQdrantAsyncClientFactory:
@@ -111,29 +186,33 @@ class TestQdrantVectorStore:
         client = factory.instances[0]
 
         await store.create_collection("embeddings", vector_size=3, distance="cosine")
-        await store.upsert(
+        affected = await store.upsert(
             "embeddings",
             [
-                {
-                    "id": 1,
-                    "vector": [0.1, 0.2, 0.3],
-                    "payload": {"kind": "doc"},
-                }
+                VectorPoint(
+                    id=1,
+                    vector=[0.1, 0.2, 0.3],
+                    payload={"kind": "doc"},
+                )
             ],
         )
         results = await store.search("embeddings", [0.1, 0.2, 0.3], limit=5)
-        await store.delete_ids("embeddings", [1])
+        total = await store.count("embeddings")
+        removed = await store.delete_ids("embeddings", [1])
 
+        assert affected == 1
+        assert total == 1
+        assert removed == 1
         assert store.scoped_collection("embeddings") == "orchid_embeddings"
         assert client.collections_created[0][0] == "orchid_embeddings"
         assert client.upsert_calls[0][0] == "orchid_embeddings"
         assert results == [
-            {
-                "id": 1,
-                "score": 0.99,
-                "payload": {"doc": "x"},
-                "vector": [0.1, 0.2],
-            }
+            VectorSearchResult(
+                id=1,
+                score=0.99,
+                payload={"doc": "x"},
+                vector=[0.1, 0.2],
+            )
         ]
         assert client.delete_calls[0][0] == "orchid_embeddings"
 
@@ -143,6 +222,56 @@ class TestQdrantVectorStore:
         await store.close()
         assert client.closed is True
         assert store.is_connected is False
+
+    async def test_delete_by_filter_uses_count_delta(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(qdrant_module, "_import_qdrant_models", lambda: FakeQdrantModels)
+        client = FakeQdrantAsyncClient(host="qdrant.local")
+        client.count_responses = [5, 2]
+        store = QdrantVectorStore(_client=client)
+
+        deleted = await store.delete_by_filter("embeddings", {"video_id": "abc"})
+
+        assert deleted == 3
+        assert client.delete_calls[0][0] == "embeddings"
+        assert isinstance(client.delete_calls[0][1], FakeFilterSelector)
+
+    async def test_search_error_is_translated_to_typed_exception(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(qdrant_module, "_import_qdrant_models", lambda: FakeQdrantModels)
+        client = FakeQdrantAsyncClient(host="qdrant.local")
+        client.fail_search = FakeQdrantError("gateway timeout", status_code=503)
+        store = QdrantVectorStore(_client=client)
+
+        with pytest.raises(VectorTransientError):
+            await store.search("embeddings", [0.1, 0.2, 0.3], limit=3)
+
+    async def test_factory_raises_if_health_check_fails(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        def failing_factory(**kwargs: Any) -> FakeQdrantAsyncClient:
+            client = FakeQdrantAsyncClient(**kwargs)
+            client.fail_health = True
+            return client
+
+        monkeypatch.setattr(qdrant_module, "_import_qdrant_async_client", lambda: failing_factory)
+        monkeypatch.setattr(qdrant_module, "_import_qdrant_models", lambda: FakeQdrantModels)
+
+        with pytest.raises(VectorOperationError):
+            settings = QdrantSettings(host="qdrant.local")
+            await create_qdrant_vector_store(settings)
+
+    async def test_validation_errors(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(qdrant_module, "_import_qdrant_models", lambda: FakeQdrantModels)
+        store = QdrantVectorStore(_client=FakeQdrantAsyncClient(host="qdrant.local"))
+
+        with pytest.raises(VectorValidationError):
+            await store.search("embeddings", [], limit=3)
+
+        with pytest.raises(VectorValidationError):
+            await store.delete("embeddings", ids=[1], filters={"kind": "doc"})
 
     async def test_health_check_unhealthy(self) -> None:
         client = FakeQdrantAsyncClient(host="qdrant.local")
