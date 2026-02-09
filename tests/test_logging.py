@@ -217,6 +217,33 @@ def test_structlog_compat_moves_logrecord_collisions() -> None:
     }
 
 
+def test_structlog_compat_moves_runtime_logrecord_collisions() -> None:
+    stream = StringIO()
+    logger = logging.getLogger("tests.logging.structlog.runtime_collisions")
+
+    bootstrap_logging(
+        service="matrix-bot",
+        env="development",
+        level="INFO",
+        log_format="json",
+        logger=logger,
+        stream=stream,
+    )
+
+    compat = get_structlog_compat_logger(logger=logger)
+    compat.info(
+        "collision_event",
+        taskName="legacy-task",
+    )
+
+    payload = json.loads(stream.getvalue().strip())
+    assert payload["message"] == "collision_event"
+    assert payload["event"] == "collision_event"
+    assert payload["structlog_conflicts"] == {
+        "taskName": "legacy-task",
+    }
+
+
 def test_structlog_compat_bind_new_unbind() -> None:
     stream = StringIO()
     logger = logging.getLogger("tests.logging.structlog.bind")

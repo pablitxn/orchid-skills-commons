@@ -35,32 +35,15 @@ _SPAN_ID_CTX: contextvars.ContextVar[str | None] = contextvars.ContextVar(
     default=None,
 )
 
-_STANDARD_RECORD_KEYS = frozenset(
-    {
-        "args",
-        "asctime",
-        "created",
-        "exc_info",
-        "exc_text",
-        "filename",
-        "funcName",
-        "levelname",
-        "levelno",
-        "lineno",
-        "module",
-        "msecs",
-        "message",
-        "msg",
-        "name",
-        "pathname",
-        "process",
-        "processName",
-        "relativeCreated",
-        "stack_info",
-        "thread",
-        "threadName",
-    }
-)
+def _build_standard_record_keys() -> frozenset[str]:
+    """Return all reserved LogRecord attributes across supported Python versions."""
+    record_keys = set(logging.makeLogRecord({}).__dict__.keys())
+    # These are formatter-generated, not always present in the initial record dict.
+    record_keys.update({"asctime", "message"})
+    return frozenset(record_keys)
+
+
+_STANDARD_RECORD_KEYS = _build_standard_record_keys()
 
 
 @dataclass(frozen=True, slots=True)
