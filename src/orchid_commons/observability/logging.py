@@ -225,6 +225,173 @@ def correlation_scope_from_headers(headers: Mapping[str, str]) -> Iterator[Corre
         yield correlation
 
 
+class StructlogCompatLogger:
+    """Compatibility adapter for structlog-style event logging.
+
+    This wrapper accepts calls like:
+
+    - ``logger.info("event_name", user_id="u-1")``
+    - ``logger.bind(component="worker").warning("event_name")``
+
+    and emits regular ``logging`` records so they are formatted by the
+    commons structured formatters.
+    """
+
+    __slots__ = ("_bound_fields", "_logger")
+
+    def __init__(
+        self,
+        logger: logging.Logger,
+        *,
+        bound_fields: Mapping[str, Any] | None = None,
+    ) -> None:
+        self._logger = logger
+        self._bound_fields = _coerce_event_fields(bound_fields)
+
+    @property
+    def logger(self) -> logging.Logger:
+        """Return the wrapped standard-library logger."""
+        return self._logger
+
+    @property
+    def bound_fields(self) -> dict[str, Any]:
+        """Return a copy of currently bound context fields."""
+        return dict(self._bound_fields)
+
+    def bind(self, **new_values: Any) -> StructlogCompatLogger:
+        """Return a new logger with additional bound context."""
+        merged = dict(self._bound_fields)
+        merged.update(_coerce_event_fields(new_values))
+        return StructlogCompatLogger(self._logger, bound_fields=merged)
+
+    def new(self, **new_values: Any) -> StructlogCompatLogger:
+        """Return a new logger replacing any previously bound context."""
+        return StructlogCompatLogger(self._logger, bound_fields=new_values)
+
+    def unbind(self, *keys: str) -> StructlogCompatLogger:
+        """Return a new logger with specific bound keys removed.
+
+        Raises:
+            KeyError: If any requested key is not currently bound.
+        """
+        merged = dict(self._bound_fields)
+        for key in keys:
+            key_text = str(key)
+            if key_text not in merged:
+                raise KeyError(key_text)
+            del merged[key_text]
+        return StructlogCompatLogger(self._logger, bound_fields=merged)
+
+    def try_unbind(self, *keys: str) -> StructlogCompatLogger:
+        """Return a new logger removing keys when present."""
+        merged = dict(self._bound_fields)
+        for key in keys:
+            merged.pop(str(key), None)
+        return StructlogCompatLogger(self._logger, bound_fields=merged)
+
+    def is_enabled_for(self, level: int | str) -> bool:
+        """Check whether a level is enabled on the wrapped logger."""
+        try:
+            resolved = _resolve_log_level(level)
+        except ValueError:
+            return False
+        return self._logger.isEnabledFor(resolved)
+
+    def log(self, level: int | str, event: object, *args: object, **event_fields: Any) -> None:
+        """Emit a log entry with an arbitrary level."""
+        resolved_level = _resolve_log_level(level)
+        self._emit(resolved_level, event, *args, **event_fields)
+
+    def debug(self, event: object, *args: object, **event_fields: Any) -> None:
+        self._emit(logging.DEBUG, event, *args, **event_fields)
+
+    def info(self, event: object, *args: object, **event_fields: Any) -> None:
+        self._emit(logging.INFO, event, *args, **event_fields)
+
+    def warning(self, event: object, *args: object, **event_fields: Any) -> None:
+        self._emit(logging.WARNING, event, *args, **event_fields)
+
+    def warn(self, event: object, *args: object, **event_fields: Any) -> None:
+        self.warning(event, *args, **event_fields)
+
+    def error(self, event: object, *args: object, **event_fields: Any) -> None:
+        self._emit(logging.ERROR, event, *args, **event_fields)
+
+    def exception(self, event: object, *args: object, **event_fields: Any) -> None:
+        event_fields.setdefault("exc_info", True)
+        self._emit(logging.ERROR, event, *args, **event_fields)
+
+    def critical(self, event: object, *args: object, **event_fields: Any) -> None:
+        self._emit(logging.CRITICAL, event, *args, **event_fields)
+
+    def fatal(self, event: object, *args: object, **event_fields: Any) -> None:
+        self.critical(event, *args, **event_fields)
+
+    def msg(self, event: object, *args: object, **event_fields: Any) -> None:
+        self.info(event, *args, **event_fields)
+
+    def _emit(self, level: int, event: object, *args: object, **event_fields: Any) -> None:
+        if not self._logger.isEnabledFor(level):
+            return
+
+        merged = dict(self._bound_fields)
+        merged.update(_coerce_event_fields(event_fields))
+
+        raw_extra = merged.pop("extra", None)
+        exc_info = merged.pop("exc_info", None)
+        stack_info = bool(merged.pop("stack_info", False))
+        raw_stacklevel = merged.pop("stacklevel", 1)
+        stacklevel = raw_stacklevel if isinstance(raw_stacklevel, int) and raw_stacklevel > 0 else 1
+
+        request_id = merged.pop("request_id", _UNSET)
+        trace_id = merged.pop("trace_id", _UNSET)
+        span_id = merged.pop("span_id", _UNSET)
+
+        payload_fields = _coerce_event_fields(raw_extra)
+        payload_fields.update(merged)
+
+        message = _render_event_message(event, args)
+        payload_fields.setdefault("event", message)
+
+        log_kwargs: dict[str, Any] = {
+            "stacklevel": stacklevel + 2,  # account for wrapper methods
+        }
+        safe_extra = _sanitize_compat_extra(payload_fields)
+        if safe_extra:
+            log_kwargs["extra"] = safe_extra
+        if exc_info is not None:
+            log_kwargs["exc_info"] = exc_info
+        if stack_info:
+            log_kwargs["stack_info"] = True
+
+        with correlation_scope(
+            request_id=request_id,
+            trace_id=trace_id,
+            span_id=span_id,
+        ):
+            self._logger.log(level, message, **log_kwargs)
+
+
+def get_structlog_compat_logger(
+    name: str | None = None,
+    *,
+    logger: logging.Logger | None = None,
+    **bound_fields: Any,
+) -> StructlogCompatLogger:
+    """Build a structlog-style compatibility logger over stdlib logging.
+
+    Args:
+        name: Optional logger name used when ``logger`` is not provided.
+        logger: Existing stdlib logger to wrap.
+        **bound_fields: Optional context fields bound at construction.
+
+    Returns:
+        Structlog-style adapter that emits stdlib log records.
+    """
+    target_logger = logger or (logging.getLogger(name) if name is not None else logging.getLogger())
+    return StructlogCompatLogger(target_logger, bound_fields=bound_fields)
+
+
 def bootstrap_logging(
     *,
     service: str,
@@ -310,6 +477,72 @@ def _clean_optional_string(value: object | None) -> str | None:
     if text == "":
         return None
     return text
+
+
+def _coerce_event_fields(values: Mapping[object, Any] | None) -> dict[str, Any]:
+    fields: dict[str, Any] = {}
+    if values is None:
+        return fields
+
+    for raw_key, value in values.items():
+        key = _clean_optional_string(raw_key)
+        if key is None:
+            continue
+        fields[key] = value
+
+    return fields
+
+
+def _render_event_message(event: object, args: tuple[object, ...]) -> str:
+    base_message = "" if event is None else str(event)
+    if not args:
+        return base_message
+
+    if isinstance(event, str):
+        try:
+            return event % args
+        except Exception:
+            pass
+
+    parts = [base_message, *(str(arg) for arg in args)]
+    return " ".join(part for part in parts if part)
+
+
+def _sanitize_compat_extra(fields: Mapping[str, Any]) -> dict[str, Any]:
+    safe: dict[str, Any] = {}
+    collisions: dict[str, Any] = {}
+
+    for key, value in fields.items():
+        if key in _STANDARD_RECORD_KEYS:
+            collisions[key] = value
+            continue
+        safe[key] = value
+
+    if collisions:
+        existing = safe.get("structlog_conflicts")
+        if isinstance(existing, Mapping):
+            merged = _coerce_event_fields(existing)
+            merged.update(collisions)
+            safe["structlog_conflicts"] = merged
+        else:
+            safe["structlog_conflicts"] = collisions
+
+    return safe
+
+
+def _resolve_log_level(level: int | str) -> int:
+    if isinstance(level, int):
+        return level
+
+    normalized = level.strip().upper()
+    if normalized.isdigit():
+        return int(normalized)
+
+    resolved = logging.getLevelName(normalized)
+    if isinstance(resolved, int):
+        return resolved
+
+    raise ValueError(f"Unknown log level: {level!r}")
 
 
 def _current_otel_trace_context() -> tuple[str | None, str | None]:

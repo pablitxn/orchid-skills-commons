@@ -52,6 +52,19 @@ logger.info("service started")
 Field naming and required structured fields are defined in:
 
 - `docs/logging-fields.md`
+- `docs/logging-compat-migration.md`
+
+### Structlog-style compatibility bridge
+
+For incremental migrations, use the compatibility adapter and keep existing
+event-style calls:
+
+```python
+from orchid_commons import get_structlog_compat_logger
+
+logger = get_structlog_compat_logger(__name__).bind(component="bot_manager")
+logger.info("bot_started", bot_name="orchid-main")
+```
 
 ## Prometheus Metrics
 

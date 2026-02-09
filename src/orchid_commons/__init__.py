@@ -83,12 +83,14 @@ from orchid_commons.observability import (
 )
 from orchid_commons.observability.logging import (
     CorrelationIds,
+    StructlogCompatLogger,
     bootstrap_logging,
     bootstrap_logging_from_app_settings,
     correlation_scope,
     correlation_scope_from_headers,
     extract_correlation_ids,
     get_correlation_ids,
+    get_structlog_compat_logger,
     parse_traceparent,
 )
 from orchid_commons.observability.metrics import (
@@ -170,6 +172,7 @@ __all__ = [
     "ShutdownError",
     "SqliteResource",
     "SqliteSettings",
+    "StructlogCompatLogger",
     "VectorAuthError",
     "VectorNotFoundError",
     "VectorOperationError",
@@ -206,6 +209,7 @@ __all__ = [
     "get_default_langfuse_client",
     "get_metrics_recorder",
     "get_observability_handle",
+    "get_structlog_compat_logger",
     "http_request_scope",
     "load_config",
     "minio_local_dev_settings",

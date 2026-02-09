@@ -13,6 +13,7 @@ from orchid_commons.observability.logging import (
     correlation_scope,
     correlation_scope_from_headers,
     get_correlation_ids,
+    get_structlog_compat_logger,
     parse_traceparent,
 )
 
@@ -123,3 +124,119 @@ def test_parse_traceparent_rejects_invalid_format() -> None:
     trace_id, span_id = parse_traceparent("not-a-traceparent")
     assert trace_id is None
     assert span_id is None
+
+
+def test_structlog_compat_logger_emits_required_fields() -> None:
+    stream = StringIO()
+    logger = logging.getLogger("tests.logging.structlog.required_fields")
+
+    bootstrap_logging(
+        service="matrix-bot",
+        env="production",
+        level="INFO",
+        log_format="json",
+        logger=logger,
+        stream=stream,
+    )
+
+    compat = get_structlog_compat_logger(logger=logger).bind(component="bot_manager")
+    compat.info(
+        "bot_started",
+        request_id="req-789",
+        trace_id="4bf92f3577b34da6a3ce929d0e0e4736",
+        span_id="00f067aa0ba902b7",
+        bot_name="orchid-main",
+    )
+
+    payload = json.loads(stream.getvalue().strip())
+
+    assert payload["service"] == "matrix-bot"
+    assert payload["env"] == "production"
+    assert payload["message"] == "bot_started"
+    assert payload["event"] == "bot_started"
+    assert payload["component"] == "bot_manager"
+    assert payload["bot_name"] == "orchid-main"
+    assert payload["request_id"] == "req-789"
+    assert payload["trace_id"] == "4bf92f3577b34da6a3ce929d0e0e4736"
+    assert payload["span_id"] == "00f067aa0ba902b7"
+
+
+def test_structlog_compat_exception_includes_stack() -> None:
+    stream = StringIO()
+    logger = logging.getLogger("tests.logging.structlog.exception")
+
+    bootstrap_logging(
+        service="matrix-bot",
+        env="staging",
+        level="INFO",
+        log_format="json",
+        logger=logger,
+        stream=stream,
+    )
+
+    compat = get_structlog_compat_logger(logger=logger)
+
+    try:
+        raise RuntimeError("boom")
+    except RuntimeError:
+        compat.exception("bot_failed", bot_name="orchid-main")
+
+    payload = json.loads(stream.getvalue().strip())
+    assert payload["level"] == "ERROR"
+    assert payload["message"] == "bot_failed"
+    assert payload["bot_name"] == "orchid-main"
+    assert "exception" in payload
+
+
+def test_structlog_compat_moves_logrecord_collisions() -> None:
+    stream = StringIO()
+    logger = logging.getLogger("tests.logging.structlog.collisions")
+
+    bootstrap_logging(
+        service="matrix-bot",
+        env="development",
+        level="INFO",
+        log_format="json",
+        logger=logger,
+        stream=stream,
+    )
+
+    compat = get_structlog_compat_logger(logger=logger)
+    compat.info(
+        "collision_event",
+        name="legacy-name",
+        module="legacy-module",
+    )
+
+    payload = json.loads(stream.getvalue().strip())
+    assert payload["message"] == "collision_event"
+    assert payload["event"] == "collision_event"
+    assert payload["structlog_conflicts"] == {
+        "name": "legacy-name",
+        "module": "legacy-module",
+    }
+
+
+def test_structlog_compat_bind_new_unbind() -> None:
+    stream = StringIO()
+    logger = logging.getLogger("tests.logging.structlog.bind")
+
+    bootstrap_logging(
+        service="matrix-bot",
+        env="development",
+        level="INFO",
+        log_format="json",
+        logger=logger,
+        stream=stream,
+    )
+
+    compat = get_structlog_compat_logger(logger=logger, service_name="matrix")
+    rebound = compat.bind(bot_name="orchid-main").unbind("service_name")
+    reset = rebound.new(component="queue")
+    reset.info("queue_ready")
+
+    payload = json.loads(stream.getvalue().strip())
+    assert payload["message"] == "queue_ready"
+    assert payload["component"] == "queue"
+    assert "bot_name" not in payload
+    assert "service_name" not in payload

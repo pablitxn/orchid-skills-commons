@@ -58,3 +58,7 @@ At request boundaries, extract and bind correlation IDs before handling business
 - FastAPI dependency: `create_fastapi_correlation_dependency`
 - aiohttp middleware: `create_aiohttp_observability_middleware`
 - Generic hook: `http_request_scope`
+
+For repos currently using `structlog` event-style calls, use
+`get_structlog_compat_logger(...)` during migration. See
+`docs/logging-compat-migration.md`.
