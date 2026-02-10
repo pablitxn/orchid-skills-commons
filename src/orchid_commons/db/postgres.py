@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, TypeVar
 
 from orchid_commons.config.resources import PostgresSettings
+from orchid_commons.db._sql_utils import collect_migration_files, read_sql_file
 from orchid_commons.observability.metrics import MetricsRecorder, get_metrics_recorder
 from orchid_commons.runtime.errors import MissingDependencyError
 from orchid_commons.runtime.health import HealthStatus
@@ -42,16 +43,6 @@ def _build_retryable_exceptions(asyncpg: Any) -> tuple[type[BaseException], ...]
         if isinstance(exc_type, type) and issubclass(exc_type, BaseException):
             retryable.append(exc_type)
     return tuple(retryable)
-
-
-def _read_sql_file(path: Path) -> str:
-    return path.read_text(encoding="utf-8")
-
-
-def _collect_migration_files(migrations_path: Path, pattern: str) -> list[Path]:
-    if not migrations_path.exists():
-        return []
-    return [path for path in sorted(migrations_path.glob(pattern)) if path.is_file()]
 
 
 @dataclass(slots=True)
@@ -197,7 +188,7 @@ class PostgresProvider:
     async def execute_script_file(self, script_path: Path | str) -> None:
         """Execute SQL script from a file."""
         script_file = Path(script_path)
-        script = _read_sql_file(script_file)
+        script = read_sql_file(script_file)
         await self.executescript(script, commit=True)
 
     async def executescript(self, sql_script: str, *, commit: bool = True) -> None:
@@ -225,7 +216,7 @@ class PostgresProvider:
         """Execute migration files in lexicographic order."""
         migrations_path = Path(migrations_dir)
         executed: list[Path] = []
-        for migration_file in _collect_migration_files(migrations_path, pattern):
+        for migration_file in collect_migration_files(migrations_path, pattern):
             await self.execute_script_file(migration_file)
             executed.append(migration_file)
         return executed
