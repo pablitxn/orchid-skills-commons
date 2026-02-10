@@ -1,3 +1,7 @@
+# ⚠️  WARNING: This file is for LOCAL DEVELOPMENT only.
+# Do NOT use these defaults in staging or production environments.
+# Override credentials via a .env file or environment variables.
+
 services:
   demo-app:
     build:
@@ -18,7 +22,7 @@ services:
       - otel-collector
 
   otel-collector:
-    image: otel/opentelemetry-collector-contrib
+    image: otel/opentelemetry-collector-contrib:0.116.0
     command: ["--config=/etc/otelcol/config.yaml"]
     volumes:
       - ./otel-collector/config.yaml:/etc/otelcol/config.yaml:ro
@@ -30,7 +34,7 @@ services:
       - jaeger
 
   prometheus:
-    image: prom/prometheus
+    image: prom/prometheus:v3.1.0
     command:
       - --config.file=/etc/prometheus/prometheus.yml
       - --web.enable-lifecycle
@@ -43,10 +47,10 @@ services:
       - otel-collector
 
   grafana:
-    image: grafana/grafana
+    image: grafana/grafana:11.4.0
     environment:
-      GF_SECURITY_ADMIN_USER: admin
-      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
       GF_USERS_ALLOW_SIGN_UP: "false"
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
@@ -58,7 +62,7 @@ services:
       - jaeger
 
   jaeger:
-    image: jaegertracing/all-in-one
+    image: jaegertracing/all-in-one:2.1.0
     environment:
       COLLECTOR_OTLP_ENABLED: "true"
     ports:

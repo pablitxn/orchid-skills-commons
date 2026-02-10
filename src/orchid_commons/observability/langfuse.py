@@ -117,8 +117,8 @@ class LangfuseClientSettings:
         langfuse = app_settings.observability.langfuse
         return cls(
             enabled=bool(app_settings.observability.enabled and langfuse.enabled),
-            public_key=langfuse.public_key,
-            secret_key=langfuse.secret_key,
+            public_key=langfuse.public_key.get_secret_value() if langfuse.public_key else None,
+            secret_key=langfuse.secret_key.get_secret_value() if langfuse.secret_key else None,
             base_url=langfuse.base_url,
             environment=langfuse.environment,
             release=langfuse.release,

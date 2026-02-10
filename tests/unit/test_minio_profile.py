@@ -226,8 +226,8 @@ def test_local_dev_settings_defaults() -> None:
     settings = minio_local_dev_settings()
 
     assert settings.endpoint == "localhost:9000"
-    assert settings.access_key == "minioadmin"
-    assert settings.secret_key == "minioadmin"
+    assert settings.access_key.get_secret_value() == "minioadmin"
+    assert settings.secret_key.get_secret_value() == "minioadmin"
     assert settings.bucket == "orchid-dev"
     assert settings.create_bucket_if_missing is True
     assert settings.secure is False

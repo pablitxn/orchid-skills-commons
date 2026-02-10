@@ -227,7 +227,7 @@ class QdrantVectorStore(ObservableMixin, VectorStore):
             port=settings.port,
             grpc_port=settings.grpc_port,
             https=settings.use_ssl,
-            api_key=settings.api_key,
+            api_key=settings.api_key.get_secret_value() if settings.api_key else None,
             timeout=settings.timeout_seconds,
             prefer_grpc=settings.prefer_grpc,
         )

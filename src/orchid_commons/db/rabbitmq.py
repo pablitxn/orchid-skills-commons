@@ -42,7 +42,7 @@ class RabbitMqBroker(ObservableMixin):
         """Create and validate a RabbitMQ broker from settings."""
         aio_pika = _import_aio_pika()
         connection = await aio_pika.connect_robust(
-            settings.url,
+            settings.url.get_secret_value(),
             timeout=settings.connect_timeout_seconds,
             heartbeat=settings.heartbeat_seconds,
         )

@@ -43,7 +43,7 @@ class MongoDbResource(ObservableMixin):
         """Create and validate a MongoDB resource from settings."""
         motor_asyncio = _import_motor_asyncio()
         client = motor_asyncio.AsyncIOMotorClient(
-            settings.uri,
+            settings.uri.get_secret_value(),
             serverSelectionTimeoutMS=settings.server_selection_timeout_ms,
             connectTimeoutMS=settings.connect_timeout_ms,
             appname=settings.app_name,

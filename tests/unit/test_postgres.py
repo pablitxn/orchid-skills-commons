@@ -225,7 +225,7 @@ class TestPostgresResourceManagerIntegration:
         created = CreatedProvider()
 
         async def fake_factory(settings: PostgresSettings) -> CreatedProvider:
-            assert settings.dsn == "postgresql://test:test@localhost:5432/test"
+            assert settings.dsn.get_secret_value() == "postgresql://test:test@localhost:5432/test"
             return created
 
         from orchid_commons.runtime.manager import register_factory

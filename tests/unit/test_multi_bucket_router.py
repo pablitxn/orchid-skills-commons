@@ -338,6 +338,6 @@ class TestMultiBucketSettings:
         )
 
         assert settings.endpoint == "localhost:9000"
-        assert settings.access_key == "minioadmin"
+        assert settings.access_key.get_secret_value() == "minioadmin"
         assert settings.create_buckets_if_missing is True
         assert settings.buckets == {"videos": "dev-videos", "chunks": "dev-chunks"}

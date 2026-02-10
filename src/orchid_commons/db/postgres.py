@@ -76,7 +76,7 @@ class PostgresProvider(ObservableMixin):
 
         asyncpg = _import_asyncpg()
         pool = await asyncpg.create_pool(
-            dsn=settings.dsn,
+            dsn=settings.dsn.get_secret_value(),
             min_size=settings.min_pool_size,
             max_size=settings.max_pool_size,
             command_timeout=settings.command_timeout_seconds,

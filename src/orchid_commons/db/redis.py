@@ -47,7 +47,7 @@ class RedisCache(ObservableMixin):
         """Create and validate a redis cache client from settings."""
         redis_asyncio = _import_redis_asyncio()
         client = redis_asyncio.from_url(
-            settings.url,
+            settings.url.get_secret_value(),
             encoding=settings.encoding,
             decode_responses=settings.decode_responses,
             socket_timeout=settings.socket_timeout_seconds,

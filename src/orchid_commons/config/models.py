@@ -7,7 +7,7 @@ import os
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, SecretStr, model_validator
 
 
 def _r2_endpoint_from_account(account_id: str) -> str:
@@ -21,7 +21,13 @@ class ServiceSettings(BaseModel):
 
     name: str = Field(..., min_length=1, description="Service name")
     version: str = Field(..., min_length=1, description="Service version")
-    host: str = Field(default="0.0.0.0", description="Bind host")
+    host: str = Field(
+        default="0.0.0.0",
+        description=(
+            "Bind host. Defaults to 0.0.0.0 for containerised deployments; "
+            "restrict via network policies or firewalls in production."
+        ),
+    )
     port: int = Field(default=8000, ge=1, le=65535, description="Bind port")
 
 
@@ -48,8 +54,8 @@ class LangfuseSettings(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     enabled: bool = Field(default=True, description="Enable Langfuse tracing")
-    public_key: str | None = Field(default=None, min_length=1, description="Langfuse public key")
-    secret_key: str | None = Field(default=None, min_length=1, description="Langfuse secret key")
+    public_key: SecretStr | None = Field(default=None, min_length=1, description="Langfuse public key")
+    secret_key: SecretStr | None = Field(default=None, min_length=1, description="Langfuse secret key")
     base_url: str = Field(
         default="https://cloud.langfuse.com",
         min_length=1,
@@ -74,8 +80,13 @@ class ObservabilitySettings(BaseModel):
     service_name: str | None = Field(default=None, description="Override service name for traces")
     sample_rate: float = Field(default=1.0, ge=0.0, le=1.0, description="Trace sample rate")
     otlp_insecure: bool = Field(
-        default=True,
-        description="Use insecure gRPC OTLP transport (disable TLS)",
+        default=False,
+        description=(
+            "Use insecure (plaintext) gRPC OTLP transport. "
+            "Defaults to False (TLS enabled) to prevent telemetry data from being "
+            "transmitted in cleartext. Set to True explicitly for local development "
+            "or when the collector is co-located and TLS is not required."
+        ),
     )
     otlp_timeout_seconds: float = Field(
         default=10.0,
@@ -111,7 +122,7 @@ class PostgresSettings(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    dsn: str = Field(..., min_length=1, description="PostgreSQL connection string")
+    dsn: SecretStr = Field(..., min_length=1, description="PostgreSQL connection string")
     min_pool_size: int = Field(default=1, ge=1, description="Minimum pool connections")
     max_pool_size: int = Field(default=10, ge=1, description="Maximum pool connections")
     command_timeout_seconds: float = Field(
@@ -133,8 +144,8 @@ class MinioSettings(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     endpoint: str = Field(..., min_length=1, description="MinIO endpoint")
-    access_key: str = Field(..., min_length=1, description="Access key")
-    secret_key: str = Field(..., min_length=1, description="Secret key")
+    access_key: SecretStr = Field(..., min_length=1, description="Access key")
+    secret_key: SecretStr = Field(..., min_length=1, description="Secret key")
     bucket: str = Field(default="orchid", min_length=1, description="Default bucket name")
     create_bucket_if_missing: bool = Field(
         default=False, description="Create bucket on startup when it is missing"
@@ -146,8 +157,8 @@ class MinioSettings(BaseModel):
         """Return kwargs compatible with S3-compatible clients like MinIO."""
         return {
             "endpoint": self.endpoint,
-            "access_key": self.access_key,
-            "secret_key": self.secret_key,
+            "access_key": self.access_key.get_secret_value(),
+            "secret_key": self.secret_key.get_secret_value(),
             "secure": self.secure,
             "region": self.region,
         }
@@ -185,7 +196,7 @@ class RedisSettings(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    url: str = Field(..., min_length=1, description="Redis connection URL")
+    url: SecretStr = Field(..., min_length=1, description="Redis connection URL")
     key_prefix: str = Field(default="", description="Optional key prefix")
     default_ttl_seconds: int | None = Field(
         default=None,
@@ -219,7 +230,7 @@ class MongoDbSettings(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    uri: str = Field(..., min_length=1, description="MongoDB connection URI")
+    uri: SecretStr = Field(..., min_length=1, description="MongoDB connection URI")
     database: str = Field(..., min_length=1, description="Database name")
     server_selection_timeout_ms: int = Field(
         default=2000,
@@ -244,7 +255,7 @@ class RabbitMqSettings(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    url: str = Field(..., min_length=1, description="RabbitMQ connection URL")
+    url: SecretStr = Field(..., min_length=1, description="RabbitMQ connection URL")
     prefetch_count: int = Field(default=50, ge=1, description="Consumer prefetch count")
     connect_timeout_seconds: float = Field(
         default=10.0,
@@ -272,7 +283,7 @@ class QdrantSettings(BaseModel):
     port: int = Field(default=6333, ge=1, le=65535, description="Qdrant HTTP port")
     grpc_port: int = Field(default=6334, ge=1, le=65535, description="Qdrant gRPC port")
     use_ssl: bool = Field(default=False, description="Use HTTPS/TLS")
-    api_key: str | None = Field(default=None, min_length=1, description="Qdrant API key")
+    api_key: SecretStr | None = Field(default=None, min_length=1, description="Qdrant API key")
     timeout_seconds: float = Field(default=10.0, gt=0.0, description="Request timeout")
     prefer_grpc: bool = Field(default=False, description="Prefer gRPC transport")
     collection_prefix: str = Field(default="", description="Collection name prefix")
@@ -289,8 +300,8 @@ class R2Settings(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    access_key: str = Field(..., min_length=1, description="R2 access key")
-    secret_key: str = Field(..., min_length=1, description="R2 secret key")
+    access_key: SecretStr = Field(..., min_length=1, description="R2 access key")
+    secret_key: SecretStr = Field(..., min_length=1, description="R2 secret key")
     bucket: str = Field(default="orchid", min_length=1, description="Default bucket name")
     account_id: str | None = Field(
         default=None, min_length=1, description="Cloudflare account id used to derive endpoint"
@@ -320,8 +331,8 @@ class R2Settings(BaseModel):
         """Return kwargs compatible with S3-compatible clients like MinIO."""
         return {
             "endpoint": self.resolved_endpoint,
-            "access_key": self.access_key,
-            "secret_key": self.secret_key,
+            "access_key": self.access_key.get_secret_value(),
+            "secret_key": self.secret_key.get_secret_value(),
             "secure": self.secure,
             "region": self.region,
         }
@@ -353,8 +364,8 @@ class MultiBucketSettings(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     endpoint: str = Field(..., min_length=1, description="S3-compatible endpoint")
-    access_key: str = Field(..., min_length=1, description="Access key")
-    secret_key: str = Field(..., min_length=1, description="Secret key")
+    access_key: SecretStr = Field(..., min_length=1, description="Access key")
+    secret_key: SecretStr = Field(..., min_length=1, description="Secret key")
     buckets: dict[str, str] = Field(
         ..., min_length=1, description="Mapping of logical aliases to bucket names"
     )
@@ -374,8 +385,8 @@ class MultiBucketSettings(BaseModel):
         """Return kwargs compatible with S3-compatible clients like MinIO."""
         return {
             "endpoint": self.endpoint,
-            "access_key": self.access_key,
-            "secret_key": self.secret_key,
+            "access_key": self.access_key.get_secret_value(),
+            "secret_key": self.secret_key.get_secret_value(),
             "secure": self.secure,
             "region": self.region,
         }

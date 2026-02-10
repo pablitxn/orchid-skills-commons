@@ -29,7 +29,7 @@ class TestResourceSettings:
         resources = app_settings.resources
 
         assert resources.postgres is not None
-        assert resources.postgres.dsn == "postgresql://user:pass@localhost:5432/app"
+        assert resources.postgres.dsn.get_secret_value() == "postgresql://user:pass@localhost:5432/app"
         assert resources.postgres.min_pool_size == 1
         assert resources.postgres.max_pool_size == 20
         assert resources.postgres.command_timeout_seconds == 60.0
@@ -92,11 +92,11 @@ class TestResourceSettings:
         resources = app_settings.resources
 
         assert resources.redis is not None
-        assert resources.redis.url == "redis://localhost:6379/1"
+        assert resources.redis.url.get_secret_value() == "redis://localhost:6379/1"
         assert resources.redis.key_prefix == "svc"
         assert resources.redis.default_ttl_seconds == 60
         assert resources.mongodb is not None
-        assert resources.mongodb.uri == "mongodb://localhost:27017"
+        assert resources.mongodb.uri.get_secret_value() == "mongodb://localhost:27017"
         assert resources.mongodb.database == "orchid"
         assert resources.mongodb.app_name == "orchid-tests"
 
@@ -126,7 +126,7 @@ class TestResourceSettings:
         resources = app_settings.resources
 
         assert resources.rabbitmq is not None
-        assert resources.rabbitmq.url == "amqp://guest:guest@localhost:5672/"
+        assert resources.rabbitmq.url.get_secret_value() == "amqp://guest:guest@localhost:5672/"
         assert resources.rabbitmq.prefetch_count == 20
         assert resources.qdrant is not None
         assert resources.qdrant.host == "localhost"
@@ -215,7 +215,7 @@ class TestResourceSettingsFromEnv:
 
         assert settings.redis is not None
         assert isinstance(settings.redis, RedisSettings)
-        assert settings.redis.url == "redis://localhost:6379/2"
+        assert settings.redis.url.get_secret_value() == "redis://localhost:6379/2"
         assert settings.redis.key_prefix == "orchid"
         assert settings.redis.default_ttl_seconds == 45
         assert settings.redis.decode_responses is False
@@ -229,7 +229,7 @@ class TestResourceSettingsFromEnv:
 
         assert settings.mongodb is not None
         assert isinstance(settings.mongodb, MongoDbSettings)
-        assert settings.mongodb.uri == "mongodb://localhost:27017"
+        assert settings.mongodb.uri.get_secret_value() == "mongodb://localhost:27017"
         assert settings.mongodb.database == "orchid"
         assert settings.mongodb.app_name == "orchid-tests"
 
@@ -242,7 +242,7 @@ class TestResourceSettingsFromEnv:
 
         assert settings.rabbitmq is not None
         assert isinstance(settings.rabbitmq, RabbitMqSettings)
-        assert settings.rabbitmq.url == "amqp://guest:guest@localhost:5672/"
+        assert settings.rabbitmq.url.get_secret_value() == "amqp://guest:guest@localhost:5672/"
         assert settings.rabbitmq.prefetch_count == 10
         assert settings.rabbitmq.publisher_confirms is False
 
@@ -265,8 +265,8 @@ class TestMinioSettings:
         settings = MinioSettings.local_dev()
 
         assert settings.endpoint == "localhost:9000"
-        assert settings.access_key == "minioadmin"
-        assert settings.secret_key == "minioadmin"
+        assert settings.access_key.get_secret_value() == "minioadmin"
+        assert settings.secret_key.get_secret_value() == "minioadmin"
         assert settings.bucket == "orchid-dev"
         assert settings.create_bucket_if_missing is True
         assert settings.secure is False

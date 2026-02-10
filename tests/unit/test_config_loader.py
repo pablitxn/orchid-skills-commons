@@ -83,7 +83,7 @@ class TestLoadConfig:
         assert settings.logging.level == "WARNING"
         assert settings.observability.otlp_endpoint == "http://collector:4317"
         assert settings.resources.postgres is not None
-        assert settings.resources.postgres.dsn == "postgresql://user:pass@localhost/db"
+        assert settings.resources.postgres.dsn.get_secret_value() == "postgresql://user:pass@localhost/db"
         assert settings.resources.postgres.max_pool_size == 20
 
     def test_missing_base_config_raises(self, tmp_path: Path) -> None:
@@ -141,8 +141,8 @@ class TestLoadConfig:
 
         settings = load_config(config_dir=tmp_path)
         assert settings.observability.langfuse.enabled is True
-        assert settings.observability.langfuse.public_key == "pk-test"
-        assert settings.observability.langfuse.secret_key == "sk-test"
+        assert settings.observability.langfuse.public_key.get_secret_value() == "pk-test"
+        assert settings.observability.langfuse.secret_key.get_secret_value() == "sk-test"
         assert settings.observability.langfuse.environment == "staging"
         assert settings.observability.langfuse.sample_rate == 0.25
 
