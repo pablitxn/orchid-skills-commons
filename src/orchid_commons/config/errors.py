@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from orchid_commons.runtime.errors import OrchidCommonsError
 
-class ConfigError(Exception):
+
+class ConfigError(OrchidCommonsError):
     """Base exception for configuration errors."""
 
 
