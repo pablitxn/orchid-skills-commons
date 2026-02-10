@@ -26,7 +26,22 @@ def _collect_migration_files(migrations_path: Path, pattern: str) -> list[Path]:
 
 
 class SqliteResource:
-    """Managed SQLite connection with helper methods for common operations."""
+    """Managed SQLite connection with helper methods for common operations.
+
+    This resource uses a **single shared connection** for all operations.
+    It is well-suited for CLI tools, MCP servers, and single-tenant applications
+    where only one logical consumer accesses the database at a time.
+
+    It is **not** suitable for multi-request HTTP servers under concurrent load.
+    A single shared connection can cause ``database is locked`` errors and
+    implicit serialization of all DB operations when multiple async tasks
+    compete for the same connection.
+
+    For higher-concurrency workloads consider using a connection pool
+    (e.g. ``aiosqlite`` with a pool wrapper) or switch to
+    :class:`~orchid_commons.db.postgres.PostgresProvider` which manages an
+    ``asyncpg`` connection pool out of the box.
+    """
 
     def __init__(
         self,

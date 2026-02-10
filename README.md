@@ -357,6 +357,9 @@ Use this baseline when implementing or migrating Orchid Python services
 ## Database Providers
 
 - `SqliteResource` (`aiosqlite`) for local/dev and lightweight deployments.
+  Uses a single shared connection — suitable for CLI tools, MCPs, and
+  single-tenant apps. **Not recommended** for multi-request HTTP servers
+  under concurrent load (use `PostgresProvider` instead).
 - `PostgresProvider` (`asyncpg` pool) for production-like workloads.
 - `RedisCache` (`redis.asyncio`) for key/value cache workflows.
 - `MongoDbResource` (`motor`) for document storage workflows.
