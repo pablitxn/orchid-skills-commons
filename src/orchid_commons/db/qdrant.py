@@ -496,7 +496,8 @@ class QdrantVectorStore(VectorStore):
                 self._observe_operation("delete", started, success=True)
                 return len(normalized_ids)
 
-            assert filters is not None
+            if filters is None:
+                raise ValueError("filters must not be None")
             qdrant_filter = _build_filter(filters, models=models)
             count_before = await self.count(collection_name, filters=filters)
             await self._client.delete(
