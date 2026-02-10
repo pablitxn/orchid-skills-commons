@@ -44,7 +44,7 @@ def check_tcp_port(host: str, port: int, timeout: float = 2.0) -> bool:
     try:
         with socket.create_connection((host, port), timeout=timeout):
             return True
-    except (socket.timeout, OSError):
+    except (TimeoutError, OSError):
         return False
 
 

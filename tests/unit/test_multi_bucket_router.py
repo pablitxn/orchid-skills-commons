@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 from datetime import timedelta
-from typing import Any
 from unittest.mock import Mock
 
 import pytest
 
-from orchid_commons.blob import MultiBucketBlobRouter, BucketInfo
+from orchid_commons.blob import MultiBucketBlobRouter
 from orchid_commons.config.resources import MultiBucketSettings
 
 
@@ -177,7 +176,7 @@ class TestMultiBucketBlobRouter:
 
         assert url == "https://example.com/signed"
         client.presigned_get_object.assert_called_once()
-        args, kwargs = client.presigned_get_object.call_args
+        args, _kwargs = client.presigned_get_object.call_args
         assert args[0] == "prod-videos"
         assert args[1] == "clip.mp4"
 

@@ -232,11 +232,18 @@ def bootstrap_observability(
     service_version: str | None = None,
     environment: str | None = None,
 ) -> ObservabilityHandle:
-    """Bootstrap OpenTelemetry SDK providers and configure OTLP export."""
+    """Bootstrap OpenTelemetry SDK providers and configure OTLP export.
+
+    Raises ``RuntimeError`` if already bootstrapped.  Call
+    ``shutdown_observability()`` first to reconfigure.
+    """
     global _OBSERVABILITY_HANDLE, _REQUEST_INSTRUMENTS
 
     if _OBSERVABILITY_HANDLE is not None:
-        return _OBSERVABILITY_HANDLE
+        raise RuntimeError(
+            "Observability is already bootstrapped. "
+            "Call shutdown_observability() before re-bootstrapping with new settings."
+        )
 
     obs_settings, resolved_service_name, resolved_service_version, resolved_environment = (
         _resolve_observability_input(

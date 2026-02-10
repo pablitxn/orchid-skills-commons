@@ -321,6 +321,13 @@ def _check_langfuse_health(client: Any) -> HealthStatus:
     )
 
 
+def reset_resource_factories() -> None:
+    """Clear all registered resource factories and reset the built-in flag."""
+    global _BUILTIN_FACTORIES_REGISTERED
+    _RESOURCE_FACTORIES.clear()
+    _BUILTIN_FACTORIES_REGISTERED = False
+
+
 def register_factory(
     name: str,
     settings_attr: str,
@@ -378,8 +385,9 @@ async def bootstrap_resources(
 ) -> None:
     """Initialize resources based on settings configuration.
 
-    Iterates through registered factories and initializes any resource
-    whose settings are configured (not None).
+    Runs all enabled resource factories concurrently via ``asyncio.gather``.
+    Successfully created resources are registered even when another factory
+    fails, so that ``startup()`` can clean them up via ``close_all()``.
 
     Args:
         settings: ResourceSettings instance with resource configurations.
@@ -387,8 +395,26 @@ async def bootstrap_resources(
     """
     _ensure_builtin_factories()
 
+    to_init: list[tuple[str, Coroutine[Any, Any, Any]]] = []
     for name, (settings_attr, factory) in _RESOURCE_FACTORIES.items():
         resource_settings = getattr(settings, settings_attr, None)
         if resource_settings is not None:
-            resource = await factory(resource_settings)
-            manager.register(name, resource)
+            to_init.append((name, factory(resource_settings)))
+
+    if not to_init:
+        return
+
+    results = await asyncio.gather(
+        *(coro for _, coro in to_init),
+        return_exceptions=True,
+    )
+
+    errors: list[BaseException] = []
+    for (name, _), result in zip(to_init, results):
+        if isinstance(result, BaseException):
+            errors.append(result)
+        else:
+            manager.register(name, result)
+
+    if errors:
+        raise errors[0]

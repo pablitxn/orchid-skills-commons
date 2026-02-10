@@ -207,10 +207,14 @@ def _clean_method(method: object) -> str | None:
 def _coerce_status_code(value: object) -> int | None:
     if value is None:
         return None
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, (str, bytes, bytearray, float)):
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return None
+    return None
 
 
 def _resolve_fastapi_route(request: Any) -> str | None:

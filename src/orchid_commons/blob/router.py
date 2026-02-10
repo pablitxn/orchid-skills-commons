@@ -14,10 +14,9 @@ from orchid_commons.blob.minio import (
     bootstrap_bucket,
 )
 from orchid_commons.blob.s3 import (
-    BlobObject,
-    BlobStorage,
-    S3BlobStorage,
     _DEFAULT_PRESIGN_EXPIRY,
+    BlobObject,
+    S3BlobStorage,
 )
 from orchid_commons.config.resources import MultiBucketSettings
 from orchid_commons.runtime.errors import MissingDependencyError
@@ -268,7 +267,8 @@ def _build_minio_client(settings: MultiBucketSettings) -> SupportsBucketBootstra
             "Install with `orchid-skills-commons[blob]`."
         ) from exc
 
-    return Minio(**settings.to_s3_client_kwargs())
+    # Minio satisfies SupportsBucketBootstrapClient but has broader method signatures
+    return Minio(**settings.to_s3_client_kwargs())  # type: ignore[arg-type,return-value]
 
 
 async def create_multi_bucket_router(

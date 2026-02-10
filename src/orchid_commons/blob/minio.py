@@ -71,7 +71,8 @@ def _build_minio_client(settings: MinioSettings) -> SupportsBucketBootstrapClien
             "Install with `orchid-skills-commons[blob]`."
         ) from exc
 
-    return Minio(**settings.to_s3_client_kwargs())
+    # Minio satisfies SupportsBucketBootstrapClient but has broader method signatures
+    return Minio(**settings.to_s3_client_kwargs())  # type: ignore[arg-type,return-value]
 
 
 async def bootstrap_bucket(

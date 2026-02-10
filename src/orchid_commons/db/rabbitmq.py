@@ -5,10 +5,11 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from time import perf_counter
-from typing import Any
+from typing import Any, ClassVar
 
 from orchid_commons.config.resources import RabbitMqSettings
-from orchid_commons.observability.metrics import MetricsRecorder, get_metrics_recorder
+from orchid_commons.observability._observable import ObservableMixin
+from orchid_commons.observability.metrics import MetricsRecorder
 from orchid_commons.runtime.errors import MissingDependencyError
 from orchid_commons.runtime.health import HealthStatus
 
@@ -25,8 +26,10 @@ def _import_aio_pika() -> Any:
 
 
 @dataclass(slots=True)
-class RabbitMqBroker:
+class RabbitMqBroker(ObservableMixin):
     """Managed RabbitMQ connection with lightweight publish helpers."""
+
+    _resource_name: ClassVar[str] = "rabbitmq"
 
     _connection: Any
     _channel: Any

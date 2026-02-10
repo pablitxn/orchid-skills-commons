@@ -11,8 +11,10 @@ from orchid_commons.observability.langfuse import (
     LangfuseClientSettings,
     create_langfuse_client,
     get_default_langfuse_client,
+    reset_default_langfuse_client,
     set_default_langfuse_client,
 )
+from orchid_commons.observability.metrics import reset_metrics_recorder
 from orchid_commons.observability.otel import (
     ObservabilityHandle,
     OpenTelemetryMetricsRecorder,
@@ -38,6 +40,7 @@ __all__ = [
     "create_langfuse_client",
     "get_default_langfuse_client",
     "get_observability_handle",
+    "reset_default_langfuse_client",
     "http_request_scope",
     "request_span",
     "request_span_async",

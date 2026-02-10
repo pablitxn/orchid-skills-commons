@@ -229,8 +229,9 @@ class S3BlobStorage(BlobStorage):
             ) from exc
 
         resolved_bucket = settings.bucket if bucket is None else bucket
-        client = Minio(**settings.to_s3_client_kwargs())
-        return cls(client=client, bucket=resolved_bucket)
+        # Minio(**dict) loses type info; Minio satisfies S3CompatibleClient structurally
+        client = Minio(**settings.to_s3_client_kwargs())  # type: ignore[arg-type]
+        return cls(client=client, bucket=resolved_bucket)  # type: ignore[arg-type]
 
     @classmethod
     def from_r2_settings(
@@ -248,8 +249,9 @@ class S3BlobStorage(BlobStorage):
             ) from exc
 
         resolved_bucket = settings.bucket if bucket is None else bucket
-        client = Minio(**settings.to_s3_client_kwargs())
-        return cls(client=client, bucket=resolved_bucket)
+        # Minio(**dict) loses type info; Minio satisfies S3CompatibleClient structurally
+        client = Minio(**settings.to_s3_client_kwargs())  # type: ignore[arg-type]
+        return cls(client=client, bucket=resolved_bucket)  # type: ignore[arg-type]
 
     async def upload(
         self,

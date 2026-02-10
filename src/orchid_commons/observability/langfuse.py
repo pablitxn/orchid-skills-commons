@@ -410,6 +410,12 @@ def set_default_langfuse_client(client: LangfuseClient | None) -> None:
     _DEFAULT_LANGFUSE_CLIENT = client
 
 
+def reset_default_langfuse_client() -> None:
+    """Clear the process-wide default Langfuse client."""
+    global _DEFAULT_LANGFUSE_CLIENT
+    _DEFAULT_LANGFUSE_CLIENT = None
+
+
 def create_langfuse_client(
     *,
     settings: LangfuseClientSettings | None = None,

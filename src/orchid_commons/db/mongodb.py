@@ -5,10 +5,11 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 from time import perf_counter
-from typing import Any
+from typing import Any, ClassVar
 
 from orchid_commons.config.resources import MongoDbSettings
-from orchid_commons.observability.metrics import MetricsRecorder, get_metrics_recorder
+from orchid_commons.observability._observable import ObservableMixin
+from orchid_commons.observability.metrics import MetricsRecorder
 from orchid_commons.runtime.errors import MissingDependencyError
 from orchid_commons.runtime.health import HealthStatus
 
@@ -25,8 +26,10 @@ def _import_motor_asyncio() -> Any:
 
 
 @dataclass(slots=True)
-class MongoDbResource:
+class MongoDbResource(ObservableMixin):
     """Managed MongoDB resource with thin collection helpers."""
+
+    _resource_name: ClassVar[str] = "mongodb"
 
     _client: Any
     _database: Any
@@ -235,25 +238,6 @@ class MongoDbResource:
             self._closed = True
 
         self._observe_operation("close", started, success=True)
-
-    def _observe_operation(self, operation: str, started: float, *, success: bool) -> None:
-        self._metrics_recorder().observe_operation(
-            resource="mongodb",
-            operation=operation,
-            duration_seconds=perf_counter() - started,
-            success=success,
-        )
-
-    def _observe_error(self, operation: str, started: float, exc: Exception) -> None:
-        self._observe_operation(operation, started, success=False)
-        self._metrics_recorder().observe_error(
-            resource="mongodb",
-            operation=operation,
-            error_type=type(exc).__name__,
-        )
-
-    def _metrics_recorder(self) -> MetricsRecorder:
-        return get_metrics_recorder() if self._metrics is None else self._metrics
 
 
 async def create_mongodb_resource(settings: MongoDbSettings) -> MongoDbResource:

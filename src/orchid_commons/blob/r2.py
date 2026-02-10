@@ -17,7 +17,8 @@ def _build_r2_client(settings: R2Settings) -> SupportsBucketBootstrapClient:
             "Install with `orchid-skills-commons[blob]`."
         ) from exc
 
-    return Minio(**settings.to_s3_client_kwargs())
+    # Minio satisfies SupportsBucketBootstrapClient but has broader method signatures
+    return Minio(**settings.to_s3_client_kwargs())  # type: ignore[arg-type,return-value]
 
 
 async def create_r2_profile(

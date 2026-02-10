@@ -74,6 +74,36 @@ markers = [
   "integration: tests that require external services (Docker, databases, MinIO)",
 ]
 
+[tool.mypy]
+mypy_path = "src"
+packages = ["orchid_commons"]
+strict = false
+
+[[tool.mypy.overrides]]
+module = [
+  "redis",
+  "redis.*",
+  "aio_pika",
+  "aio_pika.*",
+  "motor",
+  "motor.*",
+  "qdrant_client",
+  "qdrant_client.*",
+  "aiohttp",
+  "aiohttp.*",
+  "asyncpg",
+  "asyncpg.*",
+  "minio",
+  "minio.*",
+  "prometheus_client",
+  "prometheus_client.*",
+  "opentelemetry",
+  "opentelemetry.*",
+  "langfuse",
+  "langfuse.*",
+]
+ignore_missing_imports = true
+
 [tool.ruff]
 line-length = 100
 target-version = "py311"

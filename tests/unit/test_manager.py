@@ -1,5 +1,7 @@
 """Tests for ResourceManager."""
 
+import asyncio
+from time import perf_counter
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -106,6 +108,70 @@ class TestResourceManager:
             }.issubset(
                 manager_module._RESOURCE_FACTORIES.keys()
             )
+        finally:
+            manager_module._RESOURCE_FACTORIES.clear()
+            manager_module._RESOURCE_FACTORIES.update(original_factories)
+            manager_module._BUILTIN_FACTORIES_REGISTERED = original_registered
+
+    async def test_bootstrap_resources_runs_factories_in_parallel(self) -> None:
+        original_factories = dict(manager_module._RESOURCE_FACTORIES)
+        original_registered = manager_module._BUILTIN_FACTORIES_REGISTERED
+        try:
+            manager_module._RESOURCE_FACTORIES.clear()
+            manager_module._BUILTIN_FACTORIES_REGISTERED = True  # skip builtin registration
+
+            async def _slow_factory(settings: object) -> str:
+                await asyncio.sleep(0.1)
+                return f"resource-{id(settings)}"
+
+            settings = MagicMock()
+            for name in ("res_a", "res_b", "res_c"):
+                manager_module.register_factory(name, name, _slow_factory)
+                setattr(settings, name, MagicMock())
+
+            mgr = ResourceManager()
+            start = perf_counter()
+            await manager_module.bootstrap_resources(settings, mgr)
+            elapsed = perf_counter() - start
+
+            # Sequential would take >= 0.3s; parallel should be ~0.1s
+            assert elapsed < 0.25, f"Expected parallel execution, took {elapsed:.3f}s"
+            assert mgr.has("res_a")
+            assert mgr.has("res_b")
+            assert mgr.has("res_c")
+        finally:
+            manager_module._RESOURCE_FACTORIES.clear()
+            manager_module._RESOURCE_FACTORIES.update(original_factories)
+            manager_module._BUILTIN_FACTORIES_REGISTERED = original_registered
+
+    async def test_bootstrap_resources_registers_successes_on_partial_failure(self) -> None:
+        original_factories = dict(manager_module._RESOURCE_FACTORIES)
+        original_registered = manager_module._BUILTIN_FACTORIES_REGISTERED
+        try:
+            manager_module._RESOURCE_FACTORIES.clear()
+            manager_module._BUILTIN_FACTORIES_REGISTERED = True
+
+            async def _ok_factory(settings: object) -> str:
+                return "ok"
+
+            async def _bad_factory(settings: object) -> str:
+                raise RuntimeError("factory exploded")
+
+            settings = MagicMock()
+            manager_module.register_factory("good_a", "good_a", _ok_factory)
+            manager_module.register_factory("bad", "bad", _bad_factory)
+            manager_module.register_factory("good_b", "good_b", _ok_factory)
+            for attr in ("good_a", "bad", "good_b"):
+                setattr(settings, attr, MagicMock())
+
+            mgr = ResourceManager()
+            with pytest.raises(RuntimeError, match="factory exploded"):
+                await manager_module.bootstrap_resources(settings, mgr)
+
+            # Successful resources should still be registered for cleanup
+            assert mgr.has("good_a")
+            assert mgr.has("good_b")
+            assert not mgr.has("bad")
         finally:
             manager_module._RESOURCE_FACTORIES.clear()
             manager_module._RESOURCE_FACTORIES.update(original_factories)

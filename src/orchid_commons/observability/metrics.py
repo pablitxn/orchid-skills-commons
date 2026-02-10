@@ -238,6 +238,12 @@ def set_metrics_recorder(recorder: MetricsRecorder | None) -> MetricsRecorder:
     return _DEFAULT_RECORDER
 
 
+def reset_metrics_recorder() -> None:
+    """Reset the process-level recorder back to the no-op default."""
+    global _DEFAULT_RECORDER
+    _DEFAULT_RECORDER = _NOOP_RECORDER
+
+
 def configure_prometheus_metrics(
     *,
     registry: Any | None = None,

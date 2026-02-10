@@ -462,7 +462,7 @@ def _clean_optional_string(value: object | None) -> str | None:
     return text
 
 
-def _coerce_event_fields(values: Mapping[object, Any] | None) -> dict[str, Any]:
+def _coerce_event_fields(values: Mapping[str, Any] | None) -> dict[str, Any]:
     fields: dict[str, Any] = {}
     if values is None:
         return fields

@@ -17,7 +17,6 @@ Environment variables for external services:
 
 from __future__ import annotations
 
-import asyncio
 import os
 from uuid import uuid4
 

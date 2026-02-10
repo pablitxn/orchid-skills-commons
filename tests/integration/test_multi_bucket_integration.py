@@ -6,7 +6,7 @@ from uuid import uuid4
 
 import pytest
 
-from orchid_commons.blob import BlobNotFoundError, MultiBucketBlobRouter
+from orchid_commons.blob import BlobNotFoundError
 from orchid_commons.blob.router import create_multi_bucket_router
 
 pytestmark = pytest.mark.integration

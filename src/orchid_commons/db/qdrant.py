@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from time import perf_counter
-from typing import Any
+from typing import Any, ClassVar
 
 from orchid_commons.config.resources import QdrantSettings
 from orchid_commons.db.vector import (
@@ -19,7 +19,8 @@ from orchid_commons.db.vector import (
     VectorTransientError,
     VectorValidationError,
 )
-from orchid_commons.observability.metrics import MetricsRecorder, get_metrics_recorder
+from orchid_commons.observability._observable import ObservableMixin
+from orchid_commons.observability.metrics import MetricsRecorder
 from orchid_commons.runtime.errors import MissingDependencyError
 from orchid_commons.runtime.health import HealthStatus
 
@@ -206,8 +207,10 @@ def _build_filter(filters: Mapping[str, Any], *, models: Any) -> Any:
 
 
 @dataclass(slots=True)
-class QdrantVectorStore(VectorStore):
+class QdrantVectorStore(ObservableMixin, VectorStore):
     """Managed Qdrant client with common vector operations."""
+
+    _resource_name: ClassVar[str] = "qdrant"
 
     _client: Any
     collection_prefix: str = ""
