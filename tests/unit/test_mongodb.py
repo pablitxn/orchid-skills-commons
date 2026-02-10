@@ -242,6 +242,55 @@ class TestMongoDbResource:
         assert bots == 2
         assert empty == 0
 
+    async def test_find_many_limit_none_returns_results(self) -> None:
+        database = FakeDatabase()
+        resource = MongoDbResource(
+            _client=FakeMongoClient(database),
+            _database=database,
+            database_name="orchid",
+        )
+        await resource.insert_one("items", {"v": 1})
+        await resource.insert_one("items", {"v": 2})
+        await resource.insert_one("items", {"v": 3})
+
+        results = await resource.find_many("items", {})
+        assert len(results) == 3
+
+    async def test_find_many_limit_positive_caps_results(self) -> None:
+        database = FakeDatabase()
+        resource = MongoDbResource(
+            _client=FakeMongoClient(database),
+            _database=database,
+            database_name="orchid",
+        )
+        for i in range(10):
+            await resource.insert_one("items", {"v": i})
+
+        results = await resource.find_many("items", {}, limit=5)
+        assert len(results) == 5
+
+    async def test_find_many_limit_zero_raises(self) -> None:
+        database = FakeDatabase()
+        resource = MongoDbResource(
+            _client=FakeMongoClient(database),
+            _database=database,
+            database_name="orchid",
+        )
+
+        with pytest.raises(ValueError, match="limit must be a positive integer or None"):
+            await resource.find_many("items", {}, limit=0)
+
+    async def test_find_many_limit_negative_raises(self) -> None:
+        database = FakeDatabase()
+        resource = MongoDbResource(
+            _client=FakeMongoClient(database),
+            _database=database,
+            database_name="orchid",
+        )
+
+        with pytest.raises(ValueError, match="limit must be a positive integer or None"):
+            await resource.find_many("items", {}, limit=-1)
+
     def test_implements_document_store_protocol(self) -> None:
         from orchid_commons.db.document import DocumentStore
 
