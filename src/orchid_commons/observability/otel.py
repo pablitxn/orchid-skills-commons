@@ -89,6 +89,8 @@ class _RetryingExporter:
                 self._retry.max_backoff_seconds,
                 self._retry.initial_backoff_seconds * (2 ** (attempt - 1)),
             )
+            # Intentional blocking sleep: runs inside BatchSpanProcessor's background
+            # thread, not an async context, so time.sleep() is correct here.
             time.sleep(delay_seconds)
             attempt += 1
 

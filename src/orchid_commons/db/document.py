@@ -72,7 +72,7 @@ class DocumentStore(Protocol):
         *,
         projection: Mapping[str, Any] | None = None,
         sort: list[tuple[str, int]] | None = None,
-        limit: int = 100,
+        limit: int | None = None,
     ) -> list[dict[str, Any]]:
         """Find multiple documents with optional sort and limit."""
         ...

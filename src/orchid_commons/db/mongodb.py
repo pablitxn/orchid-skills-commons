@@ -127,18 +127,26 @@ class MongoDbResource:
         *,
         projection: dict[str, Any] | None = None,
         sort: list[tuple[str, int]] | None = None,
-        limit: int = 100,
+        limit: int | None = None,
     ) -> list[dict[str, Any]]:
-        """Find multiple documents with optional sort and limit."""
+        """Find multiple documents with optional sort and limit.
+
+        Args:
+            limit: Maximum number of documents to return.  Must be a positive
+                   integer or ``None`` (no limit, capped to 1 000 for safety).
+                   Passing ``0`` or a negative value raises ``ValueError``.
+        """
+        if limit is not None and limit <= 0:
+            raise ValueError("limit must be a positive integer or None")
+
         started = perf_counter()
-        bounded_limit = max(0, limit)
         try:
             cursor = self.collection(collection).find(query, projection=projection)
             if sort:
                 cursor = cursor.sort(sort)
-            if bounded_limit > 0:
-                cursor = cursor.limit(bounded_limit)
-            documents = await cursor.to_list(length=bounded_limit or 1_000)
+            if limit is not None:
+                cursor = cursor.limit(limit)
+            documents = await cursor.to_list(length=limit if limit is not None else 1_000)
         except Exception as exc:
             self._observe_error("find_many", started, exc)
             raise
