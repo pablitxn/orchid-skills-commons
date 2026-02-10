@@ -93,7 +93,7 @@ class TestDocumentStoreProtocol:
 
     def test_mongodb_is_document_store_instance(self) -> None:
         from orchid_commons.db.mongodb import MongoDbResource
-        from tests.test_mongodb import FakeDatabase, FakeMongoClient
+        from tests.unit.test_mongodb import FakeDatabase, FakeMongoClient
 
         database = FakeDatabase()
         resource = MongoDbResource(
