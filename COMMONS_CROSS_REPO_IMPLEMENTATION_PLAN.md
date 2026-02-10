@@ -9,6 +9,7 @@ Implementar `orchid_commons` en los tres repos enlazados para:
 3. Estandarizar logging/observabilidad/health checks.
 4. Identificar y normalizar recursos de plataforma por servicio.
 5. Ejecutar migracion con trabajo paralelizable y trazable por PR.
+6. Estandarizar calidad de codigo (`uv` + `ruff` + `pytest`) como baseline comun.
 
 ## Repos en alcance
 
@@ -97,6 +98,9 @@ Impacto cuantitativo:
 5. Health centralizado via `manager.health_payload(...)` y checks opcionales.
 6. Shutdown ordenado via `manager.close_all()` + `shutdown_observability()`.
 
+Referencia del baseline comun de calidad y runtime:
+- `docs/commons-first-python-quality-standard.md`
+
 ## Gaps detectados y decisiones tecnicas previas
 
 1. `youtube-mcp` usa multi-bucket por operacion; `S3BlobStorage/MinioProfile` en commons usa bucket fijo por instancia.
@@ -120,7 +124,8 @@ Decidir:
 - [ ] Definir version objetivo de `orchid_commons` para los 3 repos.
 - [ ] Definir plantilla unica `appsettings.json` + `appsettings.{env}.json`.
 - [ ] Definir convencion de env (`ORCHID_ENV`) y placeholders.
-- [ ] Definir checklist de PR y gate de QA comun.
+- [ ] Adoptar oficialmente `docs/commons-first-python-quality-standard.md`.
+- [ ] Definir checklist de PR y gate de QA comun (`uv sync`, `ruff check`, `ruff format --check`, `pytest`).
 
 Dependencias: ninguna.  
 Salida: ADR corta + templates de config.
@@ -218,6 +223,7 @@ Dependencias: S1 + S2 + S3.
 - [ ] Health readiness refleja estado real de Orchid API + bots Matrix.
 - [ ] Logging estructurado unificado sin romper comportamiento actual.
 - [ ] Observabilidad opcional disponible por entorno.
+- [ ] Pipeline/base local usa `uv` + `ruff` + `pytest` como gate minimo.
 
 ## Riesgos principales y mitigaciones
 
@@ -257,6 +263,8 @@ Mitigacion: centralizar bootstrap en lifespan/startup unico por proceso.
 
 ```bash
 uv sync --extra all --extra dev
+uv run ruff check .
+uv run ruff format --check .
 uv run pytest
 ```
 
@@ -265,6 +273,8 @@ uv run pytest
 ```bash
 cd youtube-mcp
 uv sync --extra dev
+uv run ruff check .
+uv run ruff format --check .
 uv run pytest
 ```
 
@@ -273,6 +283,8 @@ uv run pytest
 ```bash
 cd orchid-matrix-bot
 uv sync --extra dev
+uv run ruff check .
+uv run ruff format --check .
 uv run pytest
 ```
 
@@ -281,6 +293,8 @@ uv run pytest
 ```bash
 cd romy-skills
 uv sync --extra dev
+uv run ruff check .
+uv run ruff format --check .
 uv run pytest
 ```
 
@@ -292,3 +306,4 @@ uv run pytest
 - [ ] Health endpoint de cada repo reporta checks de recursos reales.
 - [ ] Runbooks de rollback validados en staging.
 - [ ] Codigo legacy duplicado (telemetry/blob/db wrappers) removido o marcado deprecado con fecha.
+- [ ] Gate minimo de calidad activo en todos los repos: `uv` + `ruff` + `pytest`.

@@ -331,6 +331,14 @@ uv run mypy src
 uv run ruff check . && uv run ruff format --check . && uv run pytest
 ```
 
+## Commons-first service standard
+
+Use this baseline when implementing or migrating Orchid Python services
+(including `matrix-orchid-bot`):
+
+- Standard definition: `docs/commons-first-python-quality-standard.md`
+- Reusable starter template: `examples/quality/python-service-template/README.md`
+
 ## Extras
 
 | Extra           | Description                        | Dependencies                          |
