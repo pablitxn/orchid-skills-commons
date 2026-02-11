@@ -6,6 +6,9 @@ version: "1.0"
 linter: jetbrains/qodana-python-community:2025.3
 profile:
   name: qodana.recommended
+bootstrap: |
+  pip install uv
+  uv sync --extra all --extra dev --frozen
 include:
   - name: CheckDependencyLicenses
 failureConditions:

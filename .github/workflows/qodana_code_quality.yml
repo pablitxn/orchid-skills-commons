@@ -36,9 +36,7 @@ jobs:
           args: ${{ steps.baseline.outputs.args }}
           upload-result: ${{ github.event_name != 'pull_request' }}
           artifact-name: qodana-report
-          bootstrap: |
-            pip install uv
-            uv sync --extra all --extra dev --frozen
         env:
           QODANA_TOKEN: ${{ secrets.QODANA_TOKEN_652186328 }}
           QODANA_ENDPOINT: 'https://qodana.cloud'
+          QODANA_PYTHON_PATH: .venv/bin/python
