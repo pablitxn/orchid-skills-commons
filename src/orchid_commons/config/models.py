@@ -618,7 +618,21 @@ class ResourceSettings(BaseModel):
         mb_secret_key = env("MULTI_BUCKET_SECRET_KEY")
         mb_buckets_json = env("MULTI_BUCKET_BUCKETS")
         if mb_endpoint and mb_access_key and mb_secret_key and mb_buckets_json:
-            buckets = json.loads(mb_buckets_json)
+            try:
+                buckets = json.loads(mb_buckets_json)
+            except (json.JSONDecodeError, ValueError) as exc:
+                raise ValueError(
+                    "MULTI_BUCKET_BUCKETS must be valid JSON: "
+                    f"{exc}"
+                ) from exc
+            if not isinstance(buckets, dict) or not all(
+                isinstance(k, str) and isinstance(v, str)
+                for k, v in buckets.items()
+            ):
+                raise ValueError(
+                    "MULTI_BUCKET_BUCKETS must be a JSON object mapping "
+                    "string aliases to string bucket names"
+                )
             multi_bucket = MultiBucketSettings(
                 endpoint=mb_endpoint,
                 access_key=SecretStr(mb_access_key),
