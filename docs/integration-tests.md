@@ -13,11 +13,11 @@ uv run pytest -m integration
 
 | Area | Test file | External dependency |
 | --- | --- | --- |
-| SQLite | `tests/integration/test_sqlite_integration.py` | None |
-| PostgreSQL | `tests/integration/test_postgres_integration.py` | Docker (or external DSN) |
-| MinIO | `tests/integration/test_minio_integration.py` | Docker (or external endpoint) |
-| Qdrant | `tests/integration/test_qdrant_integration.py` | Docker (or external endpoint) |
-| Observability smoke | `tests/integration/test_observability_integration.py` | `observability` extra |
+| SQLite | `tests/integration/connectors/test_sqlite_integration.py` | None |
+| PostgreSQL | `tests/integration/connectors/test_postgres_integration.py` | Docker (or external DSN) |
+| MinIO | `tests/integration/connectors/test_minio_integration.py` | Docker (or external endpoint) |
+| Qdrant | `tests/integration/connectors/test_qdrant_integration.py` | Docker (or external endpoint) |
+| Observability smoke | `tests/integration/observability/test_observability_integration.py` | `observability` extra |
 
 ## Service Selection
 

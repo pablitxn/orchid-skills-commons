@@ -15,7 +15,7 @@ from orchid_commons.config import (
     load_config,
 )
 
-FIXTURES_DIR = Path(__file__).resolve().parent.parent / "fixtures" / "config"
+FIXTURES_DIR = Path(__file__).resolve().parents[2] / "fixtures" / "config"
 
 
 class TestDeepMerge:

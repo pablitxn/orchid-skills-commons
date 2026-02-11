@@ -5,7 +5,7 @@ This test suite validates that all abstractions work correctly together
 when connected to real services (MinIO, MongoDB, Qdrant, PostgreSQL, etc.).
 
 Run with:
-    pytest tests/integration/test_e2e_all_modules.py -v -s
+    pytest tests/integration/e2e/test_e2e_all_modules.py -v -s
 
 Environment variables for external services:
     ORCHID_MINIO_ENDPOINT=localhost:9000
