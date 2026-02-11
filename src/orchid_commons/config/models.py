@@ -6,7 +6,7 @@ import json
 import os
 import warnings
 from pathlib import Path
-from typing import Literal, Self
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, model_validator
 
@@ -189,7 +189,7 @@ class MinioSettings(BaseModel):
         secure: bool = False,
         region: str | None = None,
         create_bucket_if_missing: bool = True,
-    ) -> Self:
+    ) -> MinioSettings:
         """Build defaults that work with local docker-compose MinIO."""
         if os.getenv("ORCHID_ENV", "development") == "production":
             raise RuntimeError("local_dev() must not be used in production environments")
@@ -324,7 +324,7 @@ class QdrantSettings(BaseModel):
     collection_prefix: str = Field(default="", description="Collection name prefix")
 
     @model_validator(mode="after")
-    def validate_url_or_host(self) -> Self:
+    def validate_url_or_host(self) -> QdrantSettings:
         if self.url is None and self.host is None:
             raise ValueError("Either url or host must be provided for Qdrant")
         return self
@@ -349,7 +349,7 @@ class R2Settings(BaseModel):
     region: str = Field(default="auto", min_length=1, description="R2 region (usually auto)")
 
     @model_validator(mode="after")
-    def validate_endpoint_or_account(self) -> Self:
+    def validate_endpoint_or_account(self) -> R2Settings:
         if self.endpoint is None and self.account_id is None:
             raise ValueError("Either endpoint or account_id must be provided for R2")
         return self
@@ -447,7 +447,7 @@ class MultiBucketSettings(BaseModel):
         secure: bool = False,
         region: str | None = None,
         create_buckets_if_missing: bool = True,
-    ) -> Self:
+    ) -> MultiBucketSettings:
         """Build defaults that work with local docker-compose MinIO."""
         if os.getenv("ORCHID_ENV", "development") == "production":
             raise RuntimeError("local_dev() must not be used in production environments")
@@ -492,7 +492,7 @@ class ResourceSettings(BaseModel):
     multi_bucket: MultiBucketSettings | None = Field(default=None)
 
     @classmethod
-    def from_env(cls, prefix: str = "ORCHID_") -> Self:
+    def from_env(cls, prefix: str = "ORCHID_") -> ResourceSettings:
         """Build settings from environment variables.
 
         Each resource is constructed only when its required env vars are set.
