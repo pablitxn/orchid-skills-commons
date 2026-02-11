@@ -1,6 +1,5 @@
 """Observability helpers for tracing and telemetry backends."""
 
-from orchid_commons.observability.observable import ObservableMixin
 from orchid_commons.observability.http import (
     create_aiohttp_observability_middleware,
     create_fastapi_correlation_dependency,
@@ -22,6 +21,7 @@ from orchid_commons.observability.langfuse import (
     set_default_langfuse_client,
 )
 from orchid_commons.observability.metrics import reset_metrics_recorder
+from orchid_commons.observability.observable import ObservableMixin
 from orchid_commons.observability.otel import (
     ObservabilityHandle,
     OpenTelemetryMetricsRecorder,

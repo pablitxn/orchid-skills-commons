@@ -128,6 +128,8 @@ def parse_traceparent(traceparent: str) -> tuple[str | None, str | None]:
     version, trace_id, span_id, flags = (part.lower() for part in parts)
     if len(version) != 2 or len(flags) != 2 or len(trace_id) != 32 or len(span_id) != 16:
         return None, None
+    if version == "ff":
+        return None, None
     if trace_id == "0" * 32 or span_id == "0" * 16:
         return None, None
 

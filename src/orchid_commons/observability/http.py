@@ -25,6 +25,7 @@ AiohttpHandler: TypeAlias = Callable[[Any], Awaitable[Any]]
 
 
 @contextmanager
+# pylint: disable-next=too-many-arguments
 def http_request_scope(
     *,
     method: str | None,
@@ -120,6 +121,7 @@ def create_fastapi_correlation_dependency(
     return dependency
 
 
+# pylint: disable-next=too-many-arguments
 def create_aiohttp_observability_middleware(
     *,
     span_name: str = "http.server.request",
@@ -281,7 +283,6 @@ def _set_fastapi_request_state(request: Any, correlation: CorrelationIds) -> Non
         state.span_id = correlation.span_id
     except (AttributeError, TypeError):
         logger.debug("Failed to set FastAPI request state", exc_info=True)
-        return
 
 
 def _set_aiohttp_request_context(request: Any, correlation: CorrelationIds) -> None:
@@ -292,7 +293,6 @@ def _set_aiohttp_request_context(request: Any, correlation: CorrelationIds) -> N
         request["span_id"] = correlation.span_id
     except (KeyError, TypeError):
         logger.debug("Failed to set aiohttp request context", exc_info=True)
-        return
 
 
 def _set_header_if_missing(headers: Any, key: str, value: str) -> None:
@@ -317,7 +317,7 @@ def _set_header_if_missing(headers: Any, key: str, value: str) -> None:
 
 def _load_aiohttp_middleware_decorator() -> Callable[[Any], Any] | None:
     try:
-        from aiohttp import web
+        from aiohttp import web  # pylint: disable=import-outside-toplevel
     except ImportError:
         return None
     return web.middleware

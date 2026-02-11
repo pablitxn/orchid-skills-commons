@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from contextlib import suppress
 from dataclasses import dataclass
 from time import perf_counter
 from typing import Any, ClassVar
@@ -22,7 +23,7 @@ from orchid_commons.runtime.health import HealthStatus
 
 def _import_motor_asyncio() -> Any:
     try:
-        from motor import motor_asyncio
+        from motor import motor_asyncio  # pylint: disable=import-outside-toplevel
     except ImportError as exc:  # pragma: no cover - exercised when extras are absent
         raise MissingDependencyError(
             "MongoDB provider requires optional dependency 'motor'. "
@@ -84,7 +85,12 @@ class MongoDbResource(ObservableMixin):
             database_name=settings.database,
             ping_timeout_seconds=settings.ping_timeout_seconds,
         )
-        await resource.ping()
+        try:
+            await resource.ping()
+        except Exception as exc:
+            with suppress(Exception):
+                client.close()
+            raise _translate_mongo_error(operation="create", collection=None, exc=exc) from exc
         return resource
 
     @property
@@ -157,6 +163,7 @@ class MongoDbResource(ObservableMixin):
             return None
         return dict(document)
 
+    # pylint: disable-next=too-many-arguments
     async def find_many(
         self,
         collection: str,
@@ -261,7 +268,13 @@ class MongoDbResource(ObservableMixin):
                 message="ok",
                 details={"database": self.database_name},
             )
-        except Exception as exc:
+        except (
+            DocumentStoreError,
+            RuntimeError,
+            TimeoutError,
+            ConnectionError,
+            OSError,
+        ) as exc:
             latency_ms = (perf_counter() - start) * 1000
             return HealthStatus(
                 healthy=False,

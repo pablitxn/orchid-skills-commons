@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
+from contextlib import suppress
 from dataclasses import dataclass
 from time import perf_counter
 from typing import Any, ClassVar
@@ -34,6 +36,11 @@ class BrokerOperationError(BrokerError):
     """Raised for non-transient broker failures."""
 
 
+_CREATE_MAX_ATTEMPTS = 3
+_CREATE_INITIAL_BACKOFF_SECONDS = 0.25
+_CREATE_MAX_BACKOFF_SECONDS = 2.0
+
+
 def _import_aio_pika() -> Any:
     try:
         import aio_pika
@@ -53,9 +60,37 @@ def _translate_broker_error(*, operation: str, exc: Exception) -> BrokerError:
     lower = message.lower()
     if "access_refused" in lower or "auth" in lower or "403" in lower:
         return BrokerAuthError(operation, message)
-    if isinstance(exc, (TimeoutError, ConnectionError, OSError)):
+    if isinstance(exc, (TimeoutError, ConnectionError, OSError)) or any(
+        token in lower
+        for token in (
+            "connection reset",
+            "reset by peer",
+            "connection refused",
+            "temporar",
+            "timed out",
+            "timeout",
+            "unavailable",
+        )
+    ):
         return BrokerTransientError(operation, message)
     return BrokerOperationError(operation, message)
+
+
+def _startup_backoff_seconds(attempt: int) -> float:
+    return min(
+        _CREATE_MAX_BACKOFF_SECONDS,
+        _CREATE_INITIAL_BACKOFF_SECONDS * (2 ** (attempt - 1)),
+    )
+
+
+async def _close_quietly(resource: Any | None) -> None:
+    if resource is None or bool(getattr(resource, "is_closed", False)):
+        return
+    close = getattr(resource, "close", None)
+    if not callable(close):
+        return
+    with suppress(Exception):
+        await close()
 
 
 @dataclass(slots=True)
@@ -74,22 +109,39 @@ class RabbitMqBroker(ObservableMixin):
     async def create(cls, settings: RabbitMqSettings) -> RabbitMqBroker:
         """Create and validate a RabbitMQ broker from settings."""
         aio_pika = _import_aio_pika()
-        connection = await aio_pika.connect_robust(
-            settings.url.get_secret_value(),
-            timeout=settings.connect_timeout_seconds,
-            heartbeat=settings.heartbeat_seconds,
-        )
-        channel = await connection.channel(
-            publisher_confirms=settings.publisher_confirms,
-        )
-        await channel.set_qos(prefetch_count=settings.prefetch_count)
-        broker = cls(
-            _connection=connection,
-            _channel=channel,
-            prefetch_count=settings.prefetch_count,
-        )
-        await broker.health_check()
-        return broker
+        for attempt in range(1, _CREATE_MAX_ATTEMPTS + 1):
+            connection: Any | None = None
+            channel: Any | None = None
+            try:
+                connection = await aio_pika.connect_robust(
+                    settings.url.get_secret_value(),
+                    timeout=settings.connect_timeout_seconds,
+                    heartbeat=settings.heartbeat_seconds,
+                )
+                channel = await connection.channel(
+                    publisher_confirms=settings.publisher_confirms,
+                )
+                await channel.set_qos(prefetch_count=settings.prefetch_count)
+                broker = cls(
+                    _connection=connection,
+                    _channel=channel,
+                    prefetch_count=settings.prefetch_count,
+                )
+                health = await broker.health_check()
+                if not health.healthy:
+                    raise ConnectionError(
+                        health.message or "RabbitMQ health check failed during startup"
+                    )
+                return broker
+            except Exception as exc:
+                translated = _translate_broker_error(operation="create", exc=exc)
+                await _close_quietly(channel)
+                await _close_quietly(connection)
+                if not isinstance(translated, BrokerTransientError) or attempt >= _CREATE_MAX_ATTEMPTS:
+                    raise translated from exc
+                await asyncio.sleep(_startup_backoff_seconds(attempt))
+
+        raise BrokerTransientError("create", "RabbitMQ startup exhausted retry attempts")
 
     @property
     def connection(self) -> Any:

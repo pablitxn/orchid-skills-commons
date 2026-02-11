@@ -28,6 +28,7 @@ _METER_NAME = "orchid_commons"
 _TRACER_NAME = "orchid_commons"
 _OBSERVABILITY_HANDLE: ObservabilityHandle | None = None
 _REQUEST_INSTRUMENTS: _RequestInstruments | None = None
+_OTEL_ENABLED_BOOTSTRAPPED = False
 _OTEL_LOCK = threading.Lock()
 
 
@@ -231,10 +232,12 @@ def bootstrap_observability(
 ) -> ObservabilityHandle:
     """Bootstrap OpenTelemetry SDK providers and configure OTLP export.
 
-    Raises ``RuntimeError`` if already bootstrapped.  Call
-    ``shutdown_observability()`` first to reconfigure.
+    When ``enabled=True``, OpenTelemetry SDK providers are configured as a
+    process-level singleton and can only be bootstrapped once per process.
+    Calling ``shutdown_observability()`` does not allow re-bootstrap with
+    ``enabled=True`` due OpenTelemetry global provider semantics.
     """
-    global _OBSERVABILITY_HANDLE, _REQUEST_INSTRUMENTS
+    global _OBSERVABILITY_HANDLE, _REQUEST_INSTRUMENTS, _OTEL_ENABLED_BOOTSTRAPPED
 
     with _OTEL_LOCK:
         if _OBSERVABILITY_HANDLE is not None:
@@ -243,92 +246,98 @@ def bootstrap_observability(
                 "Call shutdown_observability() before re-bootstrapping with new settings."
             )
 
-    obs_settings, resolved_service_name, resolved_service_version, resolved_environment = (
-        _resolve_observability_input(
-            settings,
-            service_name=service_name,
-            service_version=service_version,
-            environment=environment,
-        )
-    )
-
-    if not obs_settings.enabled:
-        with _OTEL_LOCK:
-            _OBSERVABILITY_HANDLE = ObservabilityHandle(enabled=False)
-        return _OBSERVABILITY_HANDLE
-
-    modules = _import_otel_sdk_modules()
-    trace_module = modules["trace"]
-    metrics_module = modules["metrics"]
-    resource_module = modules["resource"]
-
-    resource_attributes: dict[str, AttributeValue] = {"service.name": resolved_service_name}
-    if resolved_service_version is not None:
-        resource_attributes["service.version"] = resolved_service_version
-    if resolved_environment is not None:
-        resource_attributes["deployment.environment"] = resolved_environment
-
-    resource_factory = getattr(resource_module, "Resource", resource_module)
-    resource = resource_factory.create(resource_attributes)
-    retry_settings = OtlpRetrySettings(
-        enabled=obs_settings.retry_enabled,
-        max_attempts=obs_settings.retry_max_attempts,
-        initial_backoff_seconds=obs_settings.retry_initial_backoff_seconds,
-        max_backoff_seconds=obs_settings.retry_max_backoff_seconds,
-    )
-
-    tracer_provider = modules["TracerProvider"](
-        resource=resource,
-        sampler=modules["TraceIdRatioBased"](obs_settings.sample_rate),
-    )
-
-    metric_readers: list[Any] = []
-    otlp_endpoint = obs_settings.otlp_endpoint
-    if otlp_endpoint:
-        span_exporter = modules["OTLPSpanExporter"](
-            endpoint=otlp_endpoint,
-            insecure=obs_settings.otlp_insecure,
-            timeout=obs_settings.otlp_timeout_seconds,
-        )
-        span_exporter = _RetryingExporter(
-            span_exporter,
-            success_value=modules["SpanExportResult"].SUCCESS,
-            retry=retry_settings,
-        )
-        tracer_provider.add_span_processor(modules["BatchSpanProcessor"](span_exporter))
-
-        metric_exporter = modules["OTLPMetricExporter"](
-            endpoint=otlp_endpoint,
-            insecure=obs_settings.otlp_insecure,
-            timeout=obs_settings.otlp_timeout_seconds,
-        )
-        metric_exporter = _RetryingExporter(
-            metric_exporter,
-            success_value=modules["MetricExportResult"].SUCCESS,
-            retry=retry_settings,
-        )
-        metric_readers.append(
-            modules["PeriodicExportingMetricReader"](
-                metric_exporter,
-                export_interval_millis=int(obs_settings.metrics_export_interval_seconds * 1000),
-                export_timeout_millis=int(obs_settings.otlp_timeout_seconds * 1000),
+        obs_settings, resolved_service_name, resolved_service_version, resolved_environment = (
+            _resolve_observability_input(
+                settings,
+                service_name=service_name,
+                service_version=service_version,
+                environment=environment,
             )
         )
 
-    meter_provider = modules["MeterProvider"](
-        resource=resource,
-        metric_readers=metric_readers,
-    )
+        if not obs_settings.enabled:
+            _OBSERVABILITY_HANDLE = ObservabilityHandle(enabled=False)
+            return _OBSERVABILITY_HANDLE
 
-    # Process-level bootstrap: expected once at service startup.
-    trace_module.set_tracer_provider(tracer_provider)
-    metrics_module.set_meter_provider(meter_provider)
+        if _OTEL_ENABLED_BOOTSTRAPPED:
+            raise RuntimeError(
+                "OpenTelemetry SDK providers were already bootstrapped in this process. "
+                "Re-bootstrap with enabled=True is not supported; restart the process "
+                "to apply new observability settings."
+            )
 
-    previous_recorder = get_metrics_recorder()
-    set_metrics_recorder(OpenTelemetryMetricsRecorder())
-    _REQUEST_INSTRUMENTS = None
+        modules = _import_otel_sdk_modules()
+        trace_module = modules["trace"]
+        metrics_module = modules["metrics"]
+        resource_module = modules["resource"]
 
-    with _OTEL_LOCK:
+        resource_attributes: dict[str, AttributeValue] = {"service.name": resolved_service_name}
+        if resolved_service_version is not None:
+            resource_attributes["service.version"] = resolved_service_version
+        if resolved_environment is not None:
+            resource_attributes["deployment.environment"] = resolved_environment
+
+        resource_factory = getattr(resource_module, "Resource", resource_module)
+        resource = resource_factory.create(resource_attributes)
+        retry_settings = OtlpRetrySettings(
+            enabled=obs_settings.retry_enabled,
+            max_attempts=obs_settings.retry_max_attempts,
+            initial_backoff_seconds=obs_settings.retry_initial_backoff_seconds,
+            max_backoff_seconds=obs_settings.retry_max_backoff_seconds,
+        )
+
+        tracer_provider = modules["TracerProvider"](
+            resource=resource,
+            sampler=modules["TraceIdRatioBased"](obs_settings.sample_rate),
+        )
+
+        metric_readers: list[Any] = []
+        otlp_endpoint = obs_settings.otlp_endpoint
+        if otlp_endpoint:
+            span_exporter = modules["OTLPSpanExporter"](
+                endpoint=otlp_endpoint,
+                insecure=obs_settings.otlp_insecure,
+                timeout=obs_settings.otlp_timeout_seconds,
+            )
+            span_exporter = _RetryingExporter(
+                span_exporter,
+                success_value=modules["SpanExportResult"].SUCCESS,
+                retry=retry_settings,
+            )
+            tracer_provider.add_span_processor(modules["BatchSpanProcessor"](span_exporter))
+
+            metric_exporter = modules["OTLPMetricExporter"](
+                endpoint=otlp_endpoint,
+                insecure=obs_settings.otlp_insecure,
+                timeout=obs_settings.otlp_timeout_seconds,
+            )
+            metric_exporter = _RetryingExporter(
+                metric_exporter,
+                success_value=modules["MetricExportResult"].SUCCESS,
+                retry=retry_settings,
+            )
+            metric_readers.append(
+                modules["PeriodicExportingMetricReader"](
+                    metric_exporter,
+                    export_interval_millis=int(obs_settings.metrics_export_interval_seconds * 1000),
+                    export_timeout_millis=int(obs_settings.otlp_timeout_seconds * 1000),
+                )
+            )
+
+        meter_provider = modules["MeterProvider"](
+            resource=resource,
+            metric_readers=metric_readers,
+        )
+
+        # Process-level bootstrap: expected once at service startup.
+        trace_module.set_tracer_provider(tracer_provider)
+        metrics_module.set_meter_provider(meter_provider)
+        _OTEL_ENABLED_BOOTSTRAPPED = True
+
+        previous_recorder = get_metrics_recorder()
+        set_metrics_recorder(OpenTelemetryMetricsRecorder())
+        _REQUEST_INSTRUMENTS = None
+
         _OBSERVABILITY_HANDLE = ObservabilityHandle(
             enabled=True,
             otlp_endpoint=otlp_endpoint,
@@ -340,7 +349,12 @@ def bootstrap_observability(
 
 
 def shutdown_observability() -> None:
-    """Shutdown providers configured by ``bootstrap_observability``."""
+    """Shutdown providers configured by ``bootstrap_observability``.
+
+    This does not reset OpenTelemetry's process-level provider bootstrap
+    semantics; after an enabled bootstrap, re-bootstrap with ``enabled=True``
+    remains disallowed for the current process.
+    """
     global _OBSERVABILITY_HANDLE, _REQUEST_INSTRUMENTS
     with _OTEL_LOCK:
         if _OBSERVABILITY_HANDLE is None:
@@ -409,12 +423,21 @@ def request_span(
                 span.set_attribute("http.status_code", resolved_status_code)
             if isinstance(current_exception, Exception):
                 _mark_span_error(span, current_exception)
+                success = False
+            else:
+                success = _is_request_success_from_status_code(resolved_status_code)
+                if not success and span is not None:
+                    _set_span_status(
+                        span=span,
+                        success=False,
+                        description=f"http.status_code={resolved_status_code}",
+                    )
             _record_request_metrics(
                 method=method,
                 route=route,
                 status_code=resolved_status_code,
                 duration_seconds=time.perf_counter() - started,
-                success=current_exception is None,
+                success=success,
             )
 
 
@@ -606,6 +629,12 @@ def _resolve_status_code(
         return int(value)
     except (TypeError, ValueError):
         return None
+
+
+def _is_request_success_from_status_code(status_code: int | None) -> bool:
+    if status_code is None:
+        return True
+    return status_code < 500
 
 
 def _mark_span_error(span: Any | None, exc: Exception) -> None:

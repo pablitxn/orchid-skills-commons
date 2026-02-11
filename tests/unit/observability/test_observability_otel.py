@@ -181,9 +181,11 @@ class FakeMetricReader:
 @pytest.fixture(autouse=True)
 def reset_observability_state() -> None:
     baseline = get_metrics_recorder()
+    otel._OTEL_ENABLED_BOOTSTRAPPED = False
     otel.shutdown_observability()
     yield
     otel.shutdown_observability()
+    otel._OTEL_ENABLED_BOOTSTRAPPED = False
     set_metrics_recorder(baseline)
 
 
@@ -343,6 +345,55 @@ def test_shutdown_then_rebootstrap_applies_new_settings(
     assert otel.get_observability_handle() is handle_b
 
 
+def test_enabled_bootstrap_cannot_rebootstrap_after_shutdown(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    trace_module = FakeTraceModule()
+    metrics_module = FakeMetricsModule()
+
+    monkeypatch.setattr(
+        otel,
+        "_import_otel_api_modules",
+        lambda: {"trace": trace_module, "metrics": metrics_module},
+    )
+    monkeypatch.setattr(
+        otel,
+        "_import_otel_sdk_modules",
+        lambda: {
+            "trace": trace_module,
+            "metrics": metrics_module,
+            "OTLPMetricExporter": FakeExporter,
+            "OTLPSpanExporter": FakeExporter,
+            "MeterProvider": FakeMeterProvider,
+            "MetricExportResult": type("MetricExportResult", (), {"SUCCESS": "success"}),
+            "PeriodicExportingMetricReader": FakeMetricReader,
+            "resource": type("ResourceModule", (), {"Resource": FakeResource}),
+            "TracerProvider": FakeTracerProvider,
+            "BatchSpanProcessor": FakeBatchSpanProcessor,
+            "SpanExportResult": type("SpanExportResult", (), {"SUCCESS": "success"}),
+            "TraceIdRatioBased": lambda sample_rate: ("sampler", sample_rate),
+        },
+    )
+
+    otel.bootstrap_observability(
+        ObservabilitySettings(
+            enabled=True,
+            otlp_endpoint=None,
+            retry_enabled=False,
+        )
+    )
+    otel.shutdown_observability()
+
+    with pytest.raises(RuntimeError, match="Re-bootstrap with enabled=True is not supported"):
+        otel.bootstrap_observability(
+            ObservabilitySettings(
+                enabled=True,
+                otlp_endpoint=None,
+                retry_enabled=False,
+            )
+        )
+
+
 def test_request_span_records_success_and_error_metrics(monkeypatch: pytest.MonkeyPatch) -> None:
     trace_module = FakeTraceModule()
     request_total = FakeInstrument()
@@ -365,6 +416,27 @@ def test_request_span_records_success_and_error_metrics(monkeypatch: pytest.Monk
             raise RuntimeError("boom")
 
     assert request_total.calls[1][2]["status"] == "error"
+
+
+def test_request_span_marks_5xx_without_exception_as_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    trace_module = FakeTraceModule()
+    request_total = FakeInstrument()
+    request_duration = FakeInstrument()
+
+    monkeypatch.setattr(otel, "_import_otel_api_trace_module", lambda: trace_module)
+    monkeypatch.setattr(
+        otel,
+        "_ensure_request_instruments",
+        lambda: otel._RequestInstruments(total=request_total, duration_seconds=request_duration),
+    )
+
+    with otel.request_span("http.request", method="GET", route="/upstream", status_code=503):
+        pass
+
+    assert request_total.calls[0][2]["status"] == "error"
+    assert request_total.calls[0][2]["http.status_code"] == 503
 
 
 def test_request_span_resolves_status_code_lazily(monkeypatch: pytest.MonkeyPatch) -> None:
