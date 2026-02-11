@@ -245,9 +245,18 @@ class MultiBucketBlobRouter:
         )
 
     async def close(self) -> None:
-        """Close underlying storage connections."""
+        """Close underlying storage connections.
+
+        Multiple aliases can share the same S3 client instance. We close each
+        distinct client only once.
+        """
         errors: list[Exception] = []
+        seen_clients: set[int] = set()
         for storage in self._storages.values():
+            client_id = id(getattr(storage, "_client", None))
+            if client_id in seen_clients:
+                continue
+            seen_clients.add(client_id)
             try:
                 await storage.close()
             except Exception as exc:

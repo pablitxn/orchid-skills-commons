@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import threading
 from collections.abc import Callable, Coroutine
 from dataclasses import dataclass, field
 from time import perf_counter
@@ -213,6 +214,7 @@ ResourceFactory = Callable[..., Coroutine[Any, Any, Any]]
 
 _RESOURCE_FACTORIES: dict[str, tuple[str, ResourceFactory]] = {}
 _BUILTIN_FACTORIES_REGISTERED = False
+_FACTORY_LOCK = threading.Lock()
 
 
 def _optional_health_checks(
@@ -324,8 +326,9 @@ def _check_langfuse_health(client: Any) -> HealthStatus:
 def reset_resource_factories() -> None:
     """Clear all registered resource factories and reset the built-in flag."""
     global _BUILTIN_FACTORIES_REGISTERED
-    _RESOURCE_FACTORIES.clear()
-    _BUILTIN_FACTORIES_REGISTERED = False
+    with _FACTORY_LOCK:
+        _RESOURCE_FACTORIES.clear()
+        _BUILTIN_FACTORIES_REGISTERED = False
 
 
 def register_factory(
@@ -340,7 +343,8 @@ def register_factory(
         settings_attr: Attribute name on ResourceSettings to check for config.
         factory: Async function that takes settings and returns a resource.
     """
-    _RESOURCE_FACTORIES[name] = (settings_attr, factory)
+    with _FACTORY_LOCK:
+        _RESOURCE_FACTORIES[name] = (settings_attr, factory)
 
 
 def _ensure_builtin_factories() -> None:
@@ -350,6 +354,7 @@ def _ensure_builtin_factories() -> None:
         return
 
     from orchid_commons.blob.minio import create_minio_profile
+    from orchid_commons.blob.r2 import create_r2_profile
     from orchid_commons.blob.router import create_multi_bucket_router
     from orchid_commons.db import (
         create_mongodb_resource,
@@ -360,23 +365,21 @@ def _ensure_builtin_factories() -> None:
         create_sqlite_resource,
     )
 
-    if "sqlite" not in _RESOURCE_FACTORIES:
-        register_factory("sqlite", "sqlite", create_sqlite_resource)
-    if "postgres" not in _RESOURCE_FACTORIES:
-        register_factory("postgres", "postgres", create_postgres_provider)
-    if "redis" not in _RESOURCE_FACTORIES:
-        register_factory("redis", "redis", create_redis_cache)
-    if "mongodb" not in _RESOURCE_FACTORIES:
-        register_factory("mongodb", "mongodb", create_mongodb_resource)
-    if "rabbitmq" not in _RESOURCE_FACTORIES:
-        register_factory("rabbitmq", "rabbitmq", create_rabbitmq_broker)
-    if "qdrant" not in _RESOURCE_FACTORIES:
-        register_factory("qdrant", "qdrant", create_qdrant_vector_store)
-    if "minio" not in _RESOURCE_FACTORIES:
-        register_factory("minio", "minio", create_minio_profile)
-    if "multi_bucket" not in _RESOURCE_FACTORIES:
-        register_factory("multi_bucket", "multi_bucket", create_multi_bucket_router)
-    _BUILTIN_FACTORIES_REGISTERED = True
+    with _FACTORY_LOCK:
+        if _BUILTIN_FACTORIES_REGISTERED:
+            return
+        _RESOURCE_FACTORIES.setdefault("sqlite", ("sqlite", create_sqlite_resource))
+        _RESOURCE_FACTORIES.setdefault("postgres", ("postgres", create_postgres_provider))
+        _RESOURCE_FACTORIES.setdefault("redis", ("redis", create_redis_cache))
+        _RESOURCE_FACTORIES.setdefault("mongodb", ("mongodb", create_mongodb_resource))
+        _RESOURCE_FACTORIES.setdefault("rabbitmq", ("rabbitmq", create_rabbitmq_broker))
+        _RESOURCE_FACTORIES.setdefault("qdrant", ("qdrant", create_qdrant_vector_store))
+        _RESOURCE_FACTORIES.setdefault("minio", ("minio", create_minio_profile))
+        _RESOURCE_FACTORIES.setdefault("r2", ("r2", create_r2_profile))
+        _RESOURCE_FACTORIES.setdefault(
+            "multi_bucket", ("multi_bucket", create_multi_bucket_router)
+        )
+        _BUILTIN_FACTORIES_REGISTERED = True
 
 
 async def bootstrap_resources(

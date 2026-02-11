@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import threading
 from dataclasses import dataclass
 from typing import Any, Protocol
 
@@ -224,24 +225,28 @@ class PrometheusMetricsRecorder:
 
 _NOOP_RECORDER = NoopMetricsRecorder()
 _DEFAULT_RECORDER: MetricsRecorder = _NOOP_RECORDER
+_METRICS_LOCK = threading.Lock()
 
 
 def get_metrics_recorder() -> MetricsRecorder:
     """Return the process-level metrics recorder."""
-    return _DEFAULT_RECORDER
+    with _METRICS_LOCK:
+        return _DEFAULT_RECORDER
 
 
 def set_metrics_recorder(recorder: MetricsRecorder | None) -> MetricsRecorder:
     """Set process-level recorder. `None` switches back to no-op."""
     global _DEFAULT_RECORDER
-    _DEFAULT_RECORDER = _NOOP_RECORDER if recorder is None else recorder
-    return _DEFAULT_RECORDER
+    with _METRICS_LOCK:
+        _DEFAULT_RECORDER = _NOOP_RECORDER if recorder is None else recorder
+        return _DEFAULT_RECORDER
 
 
 def reset_metrics_recorder() -> None:
     """Reset the process-level recorder back to the no-op default."""
     global _DEFAULT_RECORDER
-    _DEFAULT_RECORDER = _NOOP_RECORDER
+    with _METRICS_LOCK:
+        _DEFAULT_RECORDER = _NOOP_RECORDER
 
 
 def configure_prometheus_metrics(

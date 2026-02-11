@@ -421,7 +421,7 @@ class QdrantVectorStore(ObservableMixin, VectorStore):
         query_filter = _build_filter(filters, models=models) if filters else None
 
         try:
-            results = await self._client.search(
+            results = await self._search_points(
                 collection_name=scoped_collection,
                 query_vector=list(query_vector),
                 query_filter=query_filter,
@@ -461,6 +461,104 @@ class QdrantVectorStore(ObservableMixin, VectorStore):
                 )
             )
         return normalized
+
+    async def _search_points(
+        self,
+        *,
+        collection_name: str,
+        query_vector: list[float],
+        query_filter: Any,
+        limit: int,
+        score_threshold: float | None,
+        with_payload: bool,
+        with_vectors: bool,
+    ) -> Sequence[Any]:
+        """Run nearest-neighbor search across supported qdrant-client APIs."""
+        search = getattr(self._client, "search", None)
+        if callable(search):
+            return await search(
+                collection_name=collection_name,
+                query_vector=query_vector,
+                query_filter=query_filter,
+                limit=limit,
+                score_threshold=score_threshold,
+                with_payload=with_payload,
+                with_vectors=with_vectors,
+            )
+
+        query_points = getattr(self._client, "query_points", None)
+        if callable(query_points):
+            try:
+                response = await query_points(
+                    collection_name=collection_name,
+                    query=query_vector,
+                    query_filter=query_filter,
+                    limit=limit,
+                    score_threshold=score_threshold,
+                    with_payload=with_payload,
+                    with_vectors=with_vectors,
+                )
+            except Exception as exc:
+                # New clients may hit /points/query, which older servers (<1.10)
+                # don't expose. Fall back to legacy /search endpoint on 404.
+                if _extract_status_code(exc) == 404:
+                    legacy = await self._search_points_legacy(
+                        collection_name=collection_name,
+                        query_vector=query_vector,
+                        query_filter=query_filter,
+                        limit=limit,
+                        score_threshold=score_threshold,
+                        with_payload=with_payload,
+                        with_vectors=with_vectors,
+                    )
+                    if legacy is not None:
+                        return legacy
+                raise
+
+            points = getattr(response, "points", None)
+            if isinstance(points, Sequence) and not isinstance(points, (str, bytes, bytearray)):
+                return points
+            if isinstance(response, Sequence) and not isinstance(response, (str, bytes, bytearray)):
+                return response
+            return []
+
+        raise AttributeError("Qdrant client does not expose search/query_points methods")
+
+    async def _search_points_legacy(
+        self,
+        *,
+        collection_name: str,
+        query_vector: list[float],
+        query_filter: Any,
+        limit: int,
+        score_threshold: float | None,
+        with_payload: bool,
+        with_vectors: bool,
+    ) -> Sequence[Any] | None:
+        """Fallback using legacy `/search` HTTP endpoint for older servers."""
+        http_client = getattr(self._client, "http", None)
+        search_api = getattr(http_client, "search_api", None)
+        search_points = getattr(search_api, "search_points", None)
+        if not callable(search_points):
+            return None
+
+        models = _import_qdrant_models()
+        search_request = models.SearchRequest(
+            vector=query_vector,
+            filter=query_filter,
+            limit=limit,
+            with_payload=with_payload,
+            with_vector=with_vectors,
+            score_threshold=score_threshold,
+        )
+        response = await search_points(
+            collection_name=collection_name,
+            search_request=search_request,
+        )
+        result = getattr(response, "result", None)
+        if isinstance(result, Sequence) and not isinstance(result, (str, bytes, bytearray)):
+            return result
+        return None
 
     async def delete(
         self,

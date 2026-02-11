@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 import time
 from collections.abc import Callable
 from contextlib import asynccontextmanager, contextmanager
@@ -26,6 +27,7 @@ _METER_NAME = "orchid_commons"
 _TRACER_NAME = "orchid_commons"
 _OBSERVABILITY_HANDLE: ObservabilityHandle | None = None
 _REQUEST_INSTRUMENTS: _RequestInstruments | None = None
+_OTEL_LOCK = threading.Lock()
 
 
 @dataclass(slots=True, frozen=True)
@@ -239,11 +241,12 @@ def bootstrap_observability(
     """
     global _OBSERVABILITY_HANDLE, _REQUEST_INSTRUMENTS
 
-    if _OBSERVABILITY_HANDLE is not None:
-        raise RuntimeError(
-            "Observability is already bootstrapped. "
-            "Call shutdown_observability() before re-bootstrapping with new settings."
-        )
+    with _OTEL_LOCK:
+        if _OBSERVABILITY_HANDLE is not None:
+            raise RuntimeError(
+                "Observability is already bootstrapped. "
+                "Call shutdown_observability() before re-bootstrapping with new settings."
+            )
 
     obs_settings, resolved_service_name, resolved_service_version, resolved_environment = (
         _resolve_observability_input(
@@ -255,7 +258,8 @@ def bootstrap_observability(
     )
 
     if not obs_settings.enabled:
-        _OBSERVABILITY_HANDLE = ObservabilityHandle(enabled=False)
+        with _OTEL_LOCK:
+            _OBSERVABILITY_HANDLE = ObservabilityHandle(enabled=False)
         return _OBSERVABILITY_HANDLE
 
     modules = _import_otel_sdk_modules()
@@ -329,34 +333,37 @@ def bootstrap_observability(
     set_metrics_recorder(OpenTelemetryMetricsRecorder())
     _REQUEST_INSTRUMENTS = None
 
-    _OBSERVABILITY_HANDLE = ObservabilityHandle(
-        enabled=True,
-        otlp_endpoint=otlp_endpoint,
-        tracer_provider=tracer_provider,
-        meter_provider=meter_provider,
-        previous_metrics_recorder=previous_recorder,
-    )
-    return _OBSERVABILITY_HANDLE
+    with _OTEL_LOCK:
+        _OBSERVABILITY_HANDLE = ObservabilityHandle(
+            enabled=True,
+            otlp_endpoint=otlp_endpoint,
+            tracer_provider=tracer_provider,
+            meter_provider=meter_provider,
+            previous_metrics_recorder=previous_recorder,
+        )
+        return _OBSERVABILITY_HANDLE
 
 
 def shutdown_observability() -> None:
     """Shutdown providers configured by ``bootstrap_observability``."""
     global _OBSERVABILITY_HANDLE, _REQUEST_INSTRUMENTS
-    if _OBSERVABILITY_HANDLE is None:
-        return
+    with _OTEL_LOCK:
+        if _OBSERVABILITY_HANDLE is None:
+            return
 
-    previous_recorder = _OBSERVABILITY_HANDLE.previous_metrics_recorder
-    if previous_recorder is not None:
-        set_metrics_recorder(previous_recorder)
+        previous_recorder = _OBSERVABILITY_HANDLE.previous_metrics_recorder
+        if previous_recorder is not None:
+            set_metrics_recorder(previous_recorder)
 
-    _OBSERVABILITY_HANDLE.shutdown()
-    _OBSERVABILITY_HANDLE = None
-    _REQUEST_INSTRUMENTS = None
+        _OBSERVABILITY_HANDLE.shutdown()
+        _OBSERVABILITY_HANDLE = None
+        _REQUEST_INSTRUMENTS = None
 
 
 def get_observability_handle() -> ObservabilityHandle | None:
     """Return the current observability handle, if bootstrap has been executed."""
-    return _OBSERVABILITY_HANDLE
+    with _OTEL_LOCK:
+        return _OBSERVABILITY_HANDLE
 
 
 @contextmanager

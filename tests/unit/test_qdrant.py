@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -36,6 +37,16 @@ class FakeScoredPoint:
 @dataclass(slots=True)
 class FakeCountResult:
     count: int
+
+
+@dataclass(slots=True)
+class FakeQueryResponse:
+    points: list[FakeScoredPoint]
+
+
+@dataclass(slots=True)
+class FakeLegacySearchResponse:
+    result: list[FakeScoredPoint]
 
 
 class FakeQdrantAsyncClient:
@@ -146,6 +157,16 @@ class FakeFilterSelector:
     filter: FakeFilter
 
 
+@dataclass(slots=True)
+class FakeSearchRequest:
+    vector: list[float]
+    filter: FakeFilter | None = None
+    limit: int = 10
+    with_payload: bool = True
+    with_vector: bool = False
+    score_threshold: float | None = None
+
+
 class FakeQdrantModels:
     Distance = FakeDistance
     VectorParams = FakeVectorParams
@@ -157,6 +178,7 @@ class FakeQdrantModels:
     FieldCondition = FakeFieldCondition
     Filter = FakeFilter
     FilterSelector = FakeFilterSelector
+    SearchRequest = FakeSearchRequest
 
 
 class FakeQdrantAsyncClientFactory:
@@ -246,6 +268,71 @@ class TestQdrantVectorStore:
 
         with pytest.raises(VectorTransientError):
             await store.search("embeddings", [0.1, 0.2, 0.3], limit=3)
+
+    async def test_search_supports_query_points_api(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(qdrant_module, "_import_qdrant_models", lambda: FakeQdrantModels)
+        client = FakeQdrantAsyncClient(host="qdrant.local")
+        client.search = None  # type: ignore[assignment]
+
+        async def query_points(**kwargs: Any) -> FakeQueryResponse:
+            client.search_calls.append(kwargs)
+            return FakeQueryResponse(
+                points=[FakeScoredPoint(id=42, score=0.77, payload={"source": "qp"}, vector=[1.0, 2.0])]
+            )
+
+        client.query_points = query_points  # type: ignore[attr-defined]
+        store = QdrantVectorStore(_client=client)
+
+        results = await store.search("embeddings", [0.1, 0.2, 0.3], limit=3)
+
+        assert results == [
+            VectorSearchResult(
+                id=42,
+                score=0.77,
+                payload={"source": "qp"},
+                vector=[1.0, 2.0],
+            )
+        ]
+        assert len(client.search_calls) == 1
+        assert client.search_calls[0]["query"] == [0.1, 0.2, 0.3]
+
+    async def test_search_falls_back_to_legacy_http_search(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(qdrant_module, "_import_qdrant_models", lambda: FakeQdrantModels)
+        client = FakeQdrantAsyncClient(host="qdrant.local")
+        client.search = None  # type: ignore[assignment]
+
+        async def query_points(**kwargs: Any) -> FakeQueryResponse:
+            del kwargs
+            raise FakeQdrantError("not found endpoint", status_code=404)
+
+        async def search_points(**kwargs: Any) -> FakeLegacySearchResponse:
+            client.search_calls.append(kwargs)
+            return FakeLegacySearchResponse(
+                result=[
+                    FakeScoredPoint(id=7, score=0.91, payload={"source": "legacy"}, vector=[0.7, 0.8])
+                ]
+            )
+
+        client.query_points = query_points  # type: ignore[attr-defined]
+        client.http = SimpleNamespace(  # type: ignore[attr-defined]
+            search_api=SimpleNamespace(search_points=search_points)
+        )
+        store = QdrantVectorStore(_client=client)
+
+        results = await store.search("embeddings", [0.1, 0.2, 0.3], limit=3)
+
+        assert results == [
+            VectorSearchResult(
+                id=7,
+                score=0.91,
+                payload={"source": "legacy"},
+                vector=[0.7, 0.8],
+            )
+        ]
+        assert len(client.search_calls) == 1
 
     async def test_factory_raises_if_health_check_fails(
         self,

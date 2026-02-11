@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import AsyncIterator, Awaitable, Callable, Iterator, Mapping
 from contextlib import contextmanager
 from typing import Any, TypeAlias
@@ -13,6 +14,8 @@ from orchid_commons.observability.logging import (
     extract_correlation_ids,
 )
 from orchid_commons.observability.otel import request_span
+
+logger = logging.getLogger(__name__)
 
 AttributeValue: TypeAlias = str | bool | int | float
 StatusCodeArg: TypeAlias = int | None | Callable[[], int | None]
@@ -274,6 +277,7 @@ def _set_fastapi_request_state(request: Any, correlation: CorrelationIds) -> Non
         state.trace_id = correlation.trace_id
         state.span_id = correlation.span_id
     except Exception:
+        logger.debug("Failed to set FastAPI request state", exc_info=True)
         return
 
 
@@ -284,6 +288,7 @@ def _set_aiohttp_request_context(request: Any, correlation: CorrelationIds) -> N
         request["trace_id"] = correlation.trace_id
         request["span_id"] = correlation.span_id
     except Exception:
+        logger.debug("Failed to set aiohttp request context", exc_info=True)
         return
 
 

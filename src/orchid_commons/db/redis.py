@@ -9,8 +9,28 @@ from typing import Any, ClassVar
 from orchid_commons.config.resources import RedisSettings
 from orchid_commons.observability._observable import ObservableMixin
 from orchid_commons.observability.metrics import MetricsRecorder
-from orchid_commons.runtime.errors import MissingDependencyError
+from orchid_commons.runtime.errors import MissingDependencyError, OrchidCommonsError
 from orchid_commons.runtime.health import HealthStatus
+
+
+class CacheError(OrchidCommonsError):
+    """Base exception for cache operations."""
+
+    def __init__(self, operation: str, message: str) -> None:
+        self.operation = operation
+        super().__init__(f"Cache {operation} failed: {message}")
+
+
+class CacheAuthError(CacheError):
+    """Raised when Redis authentication fails."""
+
+
+class CacheTransientError(CacheError):
+    """Raised for retryable cache failures (timeout, connection reset)."""
+
+
+class CacheOperationError(CacheError):
+    """Raised for non-transient cache failures."""
 
 
 def _import_redis_asyncio() -> Any:
@@ -22,6 +42,19 @@ def _import_redis_asyncio() -> Any:
             "Install with: uv sync --extra redis (or --extra db)"
         ) from exc
     return redis_asyncio
+
+
+def _translate_redis_error(*, operation: str, exc: Exception) -> CacheError:
+    """Translate a redis-py exception to a domain error."""
+    if isinstance(exc, CacheError):
+        return exc
+    message = str(exc) or type(exc).__name__
+    lower = message.lower()
+    if "auth" in lower or "noauth" in lower or "wrongpass" in lower:
+        return CacheAuthError(operation, message)
+    if isinstance(exc, (TimeoutError, ConnectionError, OSError)):
+        return CacheTransientError(operation, message)
+    return CacheOperationError(operation, message)
 
 
 def _normalize_prefix(prefix: str) -> str:
@@ -82,7 +115,7 @@ class RedisCache(ObservableMixin):
             result = bool(await self._client.ping())
         except Exception as exc:
             self._observe_error("ping", started, exc)
-            raise
+            raise _translate_redis_error(operation="ping", exc=exc) from exc
 
         self._observe_operation("ping", started, success=True)
         return result
@@ -94,7 +127,7 @@ class RedisCache(ObservableMixin):
             value = await self._client.get(self._scoped_key(key))
         except Exception as exc:
             self._observe_error("get", started, exc)
-            raise
+            raise _translate_redis_error(operation="get", exc=exc) from exc
 
         self._observe_operation("get", started, success=True)
         return value
@@ -119,7 +152,7 @@ class RedisCache(ObservableMixin):
             )
         except Exception as exc:
             self._observe_error("set", started, exc)
-            raise
+            raise _translate_redis_error(operation="set", exc=exc) from exc
 
         self._observe_operation("set", started, success=True)
         return success
@@ -131,7 +164,7 @@ class RedisCache(ObservableMixin):
             deleted = int(await self._client.delete(self._scoped_key(key)))
         except Exception as exc:
             self._observe_error("delete", started, exc)
-            raise
+            raise _translate_redis_error(operation="delete", exc=exc) from exc
 
         self._observe_operation("delete", started, success=True)
         return deleted
@@ -143,7 +176,7 @@ class RedisCache(ObservableMixin):
             exists = bool(await self._client.exists(self._scoped_key(key)))
         except Exception as exc:
             self._observe_error("exists", started, exc)
-            raise
+            raise _translate_redis_error(operation="exists", exc=exc) from exc
 
         self._observe_operation("exists", started, success=True)
         return exists

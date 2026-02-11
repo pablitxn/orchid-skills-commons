@@ -24,6 +24,7 @@ from __future__ import annotations
 import argparse
 import subprocess
 import sys
+from pathlib import Path
 from urllib.error import URLError
 from urllib.request import urlopen
 
@@ -114,6 +115,7 @@ def set_environment_variables() -> None:
 
 def run_tests(verbose: bool = False, markers: list[str] | None = None) -> int:
     """Run pytest integration tests."""
+    repo_root = Path(__file__).resolve().parents[2]
     cmd = [
         sys.executable,
         "-m",
@@ -135,7 +137,7 @@ def run_tests(verbose: bool = False, markers: list[str] | None = None) -> int:
     print(f"Command: {' '.join(cmd)}")
     print("-" * 40)
 
-    result = subprocess.run(cmd, cwd="/Users/pablitxn/repos/orchid_skills_commons_py")
+    result = subprocess.run(cmd, cwd=repo_root)
     return result.returncode
 
 

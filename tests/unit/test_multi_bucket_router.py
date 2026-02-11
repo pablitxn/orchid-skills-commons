@@ -280,6 +280,23 @@ class TestMultiBucketBlobRouter:
         assert status.details is not None
         assert "error_videos" in status.details
 
+    async def test_close_closes_shared_client_only_once(self) -> None:
+        client = make_client()
+        close_calls = {"count": 0}
+
+        def non_idempotent_close() -> None:
+            close_calls["count"] += 1
+            if close_calls["count"] > 1:
+                raise RuntimeError("already closed")
+
+        client.close.side_effect = non_idempotent_close
+        settings = make_settings()
+        router = MultiBucketBlobRouter(client=client, settings=settings)
+
+        await router.close()
+
+        assert close_calls["count"] == 1
+
 
 class TestMultiBucketSettings:
     def test_requires_at_least_one_bucket(self) -> None:

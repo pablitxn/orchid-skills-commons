@@ -105,6 +105,7 @@ class TestResourceManager:
                 "rabbitmq",
                 "qdrant",
                 "minio",
+                "r2",
             }.issubset(
                 manager_module._RESOURCE_FACTORIES.keys()
             )

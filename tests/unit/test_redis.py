@@ -91,4 +91,4 @@ class TestRedisCache:
         status = await cache.health_check()
 
         assert status.healthy is False
-        assert status.details == {"error_type": "RuntimeError"}
+        assert status.details == {"error_type": "CacheOperationError"}

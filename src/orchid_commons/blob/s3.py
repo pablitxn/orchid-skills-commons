@@ -209,7 +209,7 @@ class S3BlobStorage(ObservableMixin, BlobStorage):
         self._client = client
         self._bucket = normalized_bucket
         self._metrics = metrics
-        self._resource_name = metrics_resource
+        self._resource_name_override = metrics_resource if metrics_resource != "s3" else None
 
     @property
     def bucket(self) -> str:

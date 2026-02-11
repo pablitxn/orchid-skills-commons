@@ -8,6 +8,12 @@ from time import perf_counter
 from typing import Any, ClassVar
 
 from orchid_commons.config.resources import MongoDbSettings
+from orchid_commons.db.document import (
+    DocumentAuthError,
+    DocumentOperationError,
+    DocumentStoreError,
+    DocumentTransientError,
+)
 from orchid_commons.observability._observable import ObservableMixin
 from orchid_commons.observability.metrics import MetricsRecorder
 from orchid_commons.runtime.errors import MissingDependencyError
@@ -23,6 +29,30 @@ def _import_motor_asyncio() -> Any:
             "Install with: uv sync --extra mongodb (or --extra db)"
         ) from exc
     return motor_asyncio
+
+
+_AUTH_CODES = {"Unauthorized", "AuthenticationFailed"}
+_TRANSIENT_CODES = {"NetworkTimeout", "ExceededTimeLimit", "WriteConcernFailed"}
+
+
+def _translate_mongo_error(
+    *,
+    operation: str,
+    collection: str | None,
+    exc: Exception,
+) -> DocumentStoreError:
+    """Translate a Motor/PyMongo exception to a domain error."""
+    if isinstance(exc, DocumentStoreError):
+        return exc
+
+    code_name = getattr(exc, "details", {}).get("codeName", "") if hasattr(exc, "details") else ""
+    message = str(exc) or type(exc).__name__
+
+    if code_name in _AUTH_CODES or "auth" in message.lower():
+        return DocumentAuthError(operation, collection, message)
+    if code_name in _TRANSIENT_CODES or isinstance(exc, (TimeoutError, ConnectionError)):
+        return DocumentTransientError(operation, collection, message)
+    return DocumentOperationError(operation, collection, message)
 
 
 @dataclass(slots=True)
@@ -98,7 +128,7 @@ class MongoDbResource(ObservableMixin):
             result = await self.collection(collection).insert_one(document)
         except Exception as exc:
             self._observe_error("insert_one", started, exc)
-            raise
+            raise _translate_mongo_error(operation="insert_one", collection=collection, exc=exc) from exc
 
         self._observe_operation("insert_one", started, success=True)
         return result.inserted_id
@@ -116,7 +146,7 @@ class MongoDbResource(ObservableMixin):
             document = await self.collection(collection).find_one(query, projection=projection)
         except Exception as exc:
             self._observe_error("find_one", started, exc)
-            raise
+            raise _translate_mongo_error(operation="find_one", collection=collection, exc=exc) from exc
 
         self._observe_operation("find_one", started, success=True)
         if document is None:
@@ -152,7 +182,7 @@ class MongoDbResource(ObservableMixin):
             documents = await cursor.to_list(length=limit if limit is not None else 1_000)
         except Exception as exc:
             self._observe_error("find_many", started, exc)
-            raise
+            raise _translate_mongo_error(operation="find_many", collection=collection, exc=exc) from exc
 
         self._observe_operation("find_many", started, success=True)
         return [dict(document) for document in documents]
@@ -171,7 +201,7 @@ class MongoDbResource(ObservableMixin):
             result = await self.collection(collection).update_one(query, update, upsert=upsert)
         except Exception as exc:
             self._observe_error("update_one", started, exc)
-            raise
+            raise _translate_mongo_error(operation="update_one", collection=collection, exc=exc) from exc
 
         self._observe_operation("update_one", started, success=True)
         return int(result.modified_count)
@@ -183,7 +213,7 @@ class MongoDbResource(ObservableMixin):
             result = await self.collection(collection).delete_one(query)
         except Exception as exc:
             self._observe_error("delete_one", started, exc)
-            raise
+            raise _translate_mongo_error(operation="delete_one", collection=collection, exc=exc) from exc
 
         self._observe_operation("delete_one", started, success=True)
         return int(result.deleted_count)
@@ -200,7 +230,7 @@ class MongoDbResource(ObservableMixin):
             result = await self.collection(collection).count_documents(filter_query)
         except Exception as exc:
             self._observe_error("count", started, exc)
-            raise
+            raise _translate_mongo_error(operation="count", collection=collection, exc=exc) from exc
 
         self._observe_operation("count", started, success=True)
         return int(result)

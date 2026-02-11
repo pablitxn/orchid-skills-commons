@@ -10,8 +10,28 @@ from typing import Any, ClassVar
 from orchid_commons.config.resources import RabbitMqSettings
 from orchid_commons.observability._observable import ObservableMixin
 from orchid_commons.observability.metrics import MetricsRecorder
-from orchid_commons.runtime.errors import MissingDependencyError
+from orchid_commons.runtime.errors import MissingDependencyError, OrchidCommonsError
 from orchid_commons.runtime.health import HealthStatus
+
+
+class BrokerError(OrchidCommonsError):
+    """Base exception for message broker operations."""
+
+    def __init__(self, operation: str, message: str) -> None:
+        self.operation = operation
+        super().__init__(f"Broker {operation} failed: {message}")
+
+
+class BrokerAuthError(BrokerError):
+    """Raised when RabbitMQ authentication fails."""
+
+
+class BrokerTransientError(BrokerError):
+    """Raised for retryable broker failures (timeout, connection lost)."""
+
+
+class BrokerOperationError(BrokerError):
+    """Raised for non-transient broker failures."""
 
 
 def _import_aio_pika() -> Any:
@@ -23,6 +43,19 @@ def _import_aio_pika() -> Any:
             "Install with: uv sync --extra rabbitmq (or --extra db)"
         ) from exc
     return aio_pika
+
+
+def _translate_broker_error(*, operation: str, exc: Exception) -> BrokerError:
+    """Translate an aio-pika exception to a domain error."""
+    if isinstance(exc, BrokerError):
+        return exc
+    message = str(exc) or type(exc).__name__
+    lower = message.lower()
+    if "access_refused" in lower or "auth" in lower or "403" in lower:
+        return BrokerAuthError(operation, message)
+    if isinstance(exc, (TimeoutError, ConnectionError, OSError)):
+        return BrokerTransientError(operation, message)
+    return BrokerOperationError(operation, message)
 
 
 @dataclass(slots=True)
@@ -90,7 +123,7 @@ class RabbitMqBroker(ObservableMixin):
             )
         except Exception as exc:
             self._observe_error("declare_queue", started, exc)
-            raise
+            raise _translate_broker_error(operation="declare_queue", exc=exc) from exc
 
         self._observe_operation("declare_queue", started, success=True)
         return queue
@@ -148,7 +181,7 @@ class RabbitMqBroker(ObservableMixin):
             await exchange.publish(message, routing_key=target_routing_key)
         except Exception as exc:
             self._observe_error("publish", started, exc)
-            raise
+            raise _translate_broker_error(operation="publish", exc=exc) from exc
 
         self._observe_operation("publish", started, success=True)
 

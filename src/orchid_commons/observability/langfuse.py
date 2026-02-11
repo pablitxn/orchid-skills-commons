@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import inspect
 import json
+import logging
 import os
+import threading
 from collections.abc import Callable, Mapping
 from contextlib import nullcontext
 from dataclasses import dataclass
@@ -12,6 +14,8 @@ from functools import wraps
 from typing import TYPE_CHECKING, Any, Literal, Protocol, TypeVar, cast
 
 from orchid_commons.runtime.errors import MissingDependencyError
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from contextlib import AbstractContextManager
@@ -21,6 +25,7 @@ if TYPE_CHECKING:
 ObservationType = Literal["span", "generation"]
 _T = TypeVar("_T")
 _DEFAULT_LANGFUSE_CLIENT: LangfuseClient | None = None
+_LANGFUSE_LOCK = threading.Lock()
 
 
 class LangfuseObservation(Protocol):
@@ -401,19 +406,22 @@ class LangfuseClient:
 
 def get_default_langfuse_client() -> LangfuseClient | None:
     """Return the process-wide default Langfuse client, if one was registered."""
-    return _DEFAULT_LANGFUSE_CLIENT
+    with _LANGFUSE_LOCK:
+        return _DEFAULT_LANGFUSE_CLIENT
 
 
 def set_default_langfuse_client(client: LangfuseClient | None) -> None:
     """Set or clear the process-wide default Langfuse client."""
     global _DEFAULT_LANGFUSE_CLIENT
-    _DEFAULT_LANGFUSE_CLIENT = client
+    with _LANGFUSE_LOCK:
+        _DEFAULT_LANGFUSE_CLIENT = client
 
 
 def reset_default_langfuse_client() -> None:
     """Clear the process-wide default Langfuse client."""
     global _DEFAULT_LANGFUSE_CLIENT
-    _DEFAULT_LANGFUSE_CLIENT = None
+    with _LANGFUSE_LOCK:
+        _DEFAULT_LANGFUSE_CLIENT = None
 
 
 def create_langfuse_client(
@@ -536,6 +544,7 @@ def _safe_observation_update(observation: Any, **kwargs: Any) -> None:
         update(**kwargs)
     except Exception:
         # Never break business logic because tracing failed.
+        logger.debug("Langfuse observation update failed", exc_info=True)
         return
 
 

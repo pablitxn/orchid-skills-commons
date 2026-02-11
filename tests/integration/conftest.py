@@ -13,9 +13,12 @@ import pytest
 
 from orchid_commons.config.resources import (
     MinioSettings,
+    MongoDbSettings,
     MultiBucketSettings,
     PostgresSettings,
     QdrantSettings,
+    RabbitMqSettings,
+    RedisSettings,
     SqliteSettings,
 )
 
@@ -221,6 +224,107 @@ def qdrant_settings() -> Iterator[QdrantSettings]:
             timeout_seconds=timeout_seconds,
             prefer_grpc=prefer_grpc,
             collection_prefix=collection_prefix,
+        )
+    finally:
+        with suppress(Exception):
+            container.stop()
+
+
+# -- Redis fixtures --
+
+@pytest.fixture(scope="session")
+def redis_settings() -> Iterator[RedisSettings]:
+    external_url = os.getenv("ORCHID_REDIS_URL")
+    if external_url:
+        yield RedisSettings(url=external_url)
+        return
+
+    _require_docker()
+    DockerContainer = pytest.importorskip("testcontainers.core.container").DockerContainer
+    image = os.getenv("ORCHID_REDIS_IMAGE", "redis:7-alpine")
+    container = DockerContainer(image).with_exposed_ports(6379)
+
+    try:
+        container.start()
+    except Exception as exc:
+        pytest.skip(f"Could not start Redis container: {exc}")
+
+    try:
+        host = container.get_container_host_ip()
+        port = container.get_exposed_port(6379)
+        yield RedisSettings(url=f"redis://{host}:{port}/0")
+    finally:
+        with suppress(Exception):
+            container.stop()
+
+
+# -- MongoDB fixtures --
+
+@pytest.fixture(scope="session")
+def mongodb_settings() -> Iterator[MongoDbSettings]:
+    external_uri = os.getenv("ORCHID_MONGODB_URI")
+    external_db = os.getenv("ORCHID_MONGODB_DATABASE", "orchid_integration_test")
+    if external_uri:
+        yield MongoDbSettings(uri=external_uri, database=external_db)
+        return
+
+    _require_docker()
+    DockerContainer = pytest.importorskip("testcontainers.core.container").DockerContainer
+    image = os.getenv("ORCHID_MONGODB_IMAGE", "mongo:7")
+    container = DockerContainer(image).with_exposed_ports(27017)
+
+    try:
+        container.start()
+    except Exception as exc:
+        pytest.skip(f"Could not start MongoDB container: {exc}")
+
+    try:
+        host = container.get_container_host_ip()
+        port = container.get_exposed_port(27017)
+        yield MongoDbSettings(
+            uri=f"mongodb://{host}:{port}",
+            database=external_db,
+        )
+    finally:
+        with suppress(Exception):
+            container.stop()
+
+
+# -- RabbitMQ fixtures --
+
+@pytest.fixture(scope="session")
+def rabbitmq_settings() -> Iterator[RabbitMqSettings]:
+    external_url = os.getenv("ORCHID_RABBITMQ_URL")
+    if external_url:
+        yield RabbitMqSettings(url=external_url)
+        return
+
+    _require_docker()
+    DockerContainer = pytest.importorskip("testcontainers.core.container").DockerContainer
+    image = os.getenv("ORCHID_RABBITMQ_IMAGE", "rabbitmq:3-alpine")
+    container = DockerContainer(image).with_exposed_ports(5672)
+
+    try:
+        container.start()
+    except Exception as exc:
+        pytest.skip(f"Could not start RabbitMQ container: {exc}")
+
+    try:
+        host = container.get_container_host_ip()
+        port = container.get_exposed_port(5672)
+        # Wait for AMQP to be ready
+        import socket
+        deadline = time.monotonic() + 30.0
+        while time.monotonic() < deadline:
+            try:
+                with socket.create_connection((host, int(port)), timeout=1.0):
+                    break
+            except OSError:
+                time.sleep(0.3)
+
+        yield RabbitMqSettings(
+            url=f"amqp://guest:guest@{host}:{port}/",
+            connect_timeout_seconds=10.0,
         )
     finally:
         with suppress(Exception):
