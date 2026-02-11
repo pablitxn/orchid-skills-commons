@@ -14,6 +14,7 @@ from orchid_commons.config import (
     deep_merge,
     load_config,
 )
+from orchid_commons.config.placeholders import resolve_placeholders
 
 FIXTURES_DIR = Path(__file__).resolve().parents[2] / "fixtures" / "config"
 
@@ -259,6 +260,28 @@ class TestPlaceholderResolution:
         settings = load_config(config_dir=tmp_path)
         assert settings.resources.sqlite is not None
         assert str(settings.resources.sqlite.db_path) == "/var/data/app.db"
+
+    def test_resolve_placeholders_recursively_inside_nested_lists(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("VALUE", "ok")
+        payload = {
+            "items": [
+                {"v": "${VALUE}"},
+                ["${VALUE}", {"inner": "${VALUE}"}],
+                "${VALUE}",
+            ],
+        }
+
+        resolved = resolve_placeholders(payload)
+
+        assert resolved == {
+            "items": [
+                {"v": "ok"},
+                ["ok", {"inner": "ok"}],
+                "ok",
+            ]
+        }
 
 
 class TestR2Config:

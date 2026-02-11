@@ -239,6 +239,9 @@ class TestResourceSettingsFromEnv:
         monkeypatch.setenv("TEST_RABBITMQ_URL", "amqp://guest:guest@localhost:5672/")
         monkeypatch.setenv("TEST_RABBITMQ_PREFETCH_COUNT", "10")
         monkeypatch.setenv("TEST_RABBITMQ_PUBLISHER_CONFIRMS", "false")
+        monkeypatch.setenv("TEST_RABBITMQ_STARTUP_RETRY_ATTEMPTS", "5")
+        monkeypatch.setenv("TEST_RABBITMQ_STARTUP_RETRY_INITIAL_BACKOFF_SECONDS", "0.4")
+        monkeypatch.setenv("TEST_RABBITMQ_STARTUP_RETRY_MAX_BACKOFF_SECONDS", "4.0")
 
         settings = ResourceSettings.from_env(prefix="TEST_")
 
@@ -247,6 +250,9 @@ class TestResourceSettingsFromEnv:
         assert settings.rabbitmq.url.get_secret_value() == "amqp://guest:guest@localhost:5672/"
         assert settings.rabbitmq.prefetch_count == 10
         assert settings.rabbitmq.publisher_confirms is False
+        assert settings.rabbitmq.startup_retry_attempts == 5
+        assert settings.rabbitmq.startup_retry_initial_backoff_seconds == 0.4
+        assert settings.rabbitmq.startup_retry_max_backoff_seconds == 4.0
 
     def test_loads_qdrant_from_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("TEST_QDRANT_HOST", "qdrant.local")

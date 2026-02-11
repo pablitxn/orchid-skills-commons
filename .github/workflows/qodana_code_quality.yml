@@ -23,6 +23,9 @@ jobs:
         uses: JetBrains/qodana-action@v2025.3
         with:
           pr-mode: false
+          bootstrap: |
+            pip install uv
+            uv sync --extra all --extra dev --frozen
         env:
           QODANA_TOKEN: ${{ secrets.QODANA_TOKEN_652186328 }}
           QODANA_ENDPOINT: 'https://qodana.cloud'
