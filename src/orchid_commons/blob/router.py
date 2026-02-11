@@ -283,7 +283,7 @@ def _build_minio_client(settings: MultiBucketSettings) -> SupportsBucketBootstra
     except ImportError as exc:
         raise MissingDependencyError(
             "MinIO support requires optional dependency 'minio'. "
-            "Install with `orchid-skills-commons[blob]`."
+            "Install with `orchid-mcp-commons[blob]`."
         ) from exc
 
     # Minio satisfies SupportsBucketBootstrapClient but has broader method signatures

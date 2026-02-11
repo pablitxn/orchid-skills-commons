@@ -20,7 +20,7 @@ Este playbook esta pensado para que un integrador pueda completar el onboarding 
 
 | Minuto | Resultado esperado |
 | --- | --- |
-| 0-5 | Clonar repos, instalar deps y validar `uv run pytest` en `orchid_skills_commons_py`. |
+| 0-5 | Clonar repos, instalar deps y validar `uv run pytest` en `orchid-mcp-commons`. |
 | 5-10 | Entender contratos de `ResourceManager`, `load_config` y perfiles blob/obs en `README.md`. |
 | 10-20 | Levantar un servicio piloto con `appsettings` + `app_settings.resources`. |
 | 20-25 | Ejecutar smoke checks de recursos (`health_check`) y cierre (`close_all`). |

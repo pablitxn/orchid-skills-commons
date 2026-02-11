@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-End-to-end integration test runner for orchid-skills-commons.
+End-to-end integration test runner for orchid-mcp-commons.
 
 This script:
 1. Checks if required services are running

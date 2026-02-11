@@ -14,7 +14,7 @@ def _build_r2_client(settings: R2Settings) -> SupportsBucketBootstrapClient:
     except ImportError as exc:  # pragma: no cover - import path depends on extras
         raise MissingDependencyError(
             "Cloudflare R2 support requires optional dependency 'minio'. "
-            "Install with `orchid-skills-commons[blob]`."
+            "Install with `orchid-mcp-commons[blob]`."
         ) from exc
 
     # Minio satisfies SupportsBucketBootstrapClient but has broader method signatures

@@ -222,7 +222,7 @@ class S3BlobStorage(ObservableMixin):
             from minio import Minio
         except ImportError as exc:
             raise MissingDependencyError(
-                "Install optional dependency: orchid-skills-commons[blob]"
+                "Install optional dependency: orchid-mcp-commons[blob]"
             ) from exc
 
         resolved_bucket = settings.bucket if bucket is None else bucket
@@ -242,7 +242,7 @@ class S3BlobStorage(ObservableMixin):
             from minio import Minio
         except ImportError as exc:
             raise MissingDependencyError(
-                "Install optional dependency: orchid-skills-commons[blob]"
+                "Install optional dependency: orchid-mcp-commons[blob]"
             ) from exc
 
         resolved_bucket = settings.bucket if bucket is None else bucket

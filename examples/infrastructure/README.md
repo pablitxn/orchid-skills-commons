@@ -1,6 +1,6 @@
 # Infrastructure Stack
 
-Local development infrastructure for testing orchid-skills-commons.
+Local development infrastructure for testing orchid-mcp-commons.
 
 ## Services
 

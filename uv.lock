@@ -1681,7 +1681,7 @@ wheels = [
 ]
 
 [[package]]
-name = "orchid-skills-commons"
+name = "orchid-mcp-commons"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
@@ -1789,7 +1789,7 @@ requires-dist = [
     { name = "opentelemetry-api", marker = "extra == 'observability'", specifier = ">=1.25.0" },
     { name = "opentelemetry-exporter-otlp", marker = "extra == 'observability'", specifier = ">=1.25.0" },
     { name = "opentelemetry-sdk", marker = "extra == 'observability'", specifier = ">=1.25.0" },
-    { name = "orchid-skills-commons", extras = ["db", "blob", "http", "observability"], marker = "extra == 'all'" },
+    { name = "orchid-mcp-commons", extras = ["db", "blob", "http", "observability"], marker = "extra == 'all'" },
     { name = "pgvector", marker = "extra == 'db'", specifier = ">=0.3.0" },
     { name = "pgvector", marker = "extra == 'pgvector'", specifier = ">=0.3.0" },
     { name = "pip-audit", marker = "extra == 'dev'", specifier = ">=2.7.0" },

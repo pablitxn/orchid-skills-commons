@@ -68,7 +68,7 @@ def _build_minio_client(settings: MinioSettings) -> SupportsBucketBootstrapClien
     except ImportError as exc:  # pragma: no cover - depends on optional extras
         raise MissingDependencyError(
             "MinIO support requires optional dependency 'minio'. "
-            "Install with `orchid-skills-commons[blob]`."
+            "Install with `orchid-mcp-commons[blob]`."
         ) from exc
 
     # Minio satisfies SupportsBucketBootstrapClient but has broader method signatures

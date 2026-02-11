@@ -1,4 +1,4 @@
-# orchid-skills-commons
+# orchid-mcp-commons
 
 Shared resource connections for Orchid ecosystem services and MCPs.
 
@@ -16,21 +16,21 @@ Shared resource connections for Orchid ecosystem services and MCPs.
 ## Installation
 
 ```bash
-uv add orchid-skills-commons
+uv add orchid-mcp-commons
 # or
-pip install orchid-skills-commons
+pip install orchid-mcp-commons
 ```
 
 Install with extras when you need specific integrations:
 
 ```bash
 # broad runtime profile
-uv add "orchid-skills-commons[all]"
+uv add "orchid-mcp-commons[all]"
 
 # focused profiles
-uv add "orchid-skills-commons[postgres]"
-uv add "orchid-skills-commons[blob]"
-uv add "orchid-skills-commons[observability]"
+uv add "orchid-mcp-commons[postgres]"
+uv add "orchid-mcp-commons[blob]"
+uv add "orchid-mcp-commons[observability]"
 ```
 
 ## Optional extras

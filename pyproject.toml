@@ -3,7 +3,7 @@ requires = ["hatchling>=1.25"]
 build-backend = "hatchling.build"
 
 [project]
-name = "orchid-skills-commons"
+name = "orchid-mcp-commons"
 version = "0.1.0"
 description = "Shared resource connections for Orchid ecosystem services and MCPs"
 readme = "README.md"
@@ -65,7 +65,7 @@ observability = [
   "langfuse>=3.0.0",
 ]
 all = [
-  "orchid-skills-commons[db,blob,http,observability]",
+  "orchid-mcp-commons[db,blob,http,observability]",
 ]
 dev = [
   "pre-commit>=4.0.0",
