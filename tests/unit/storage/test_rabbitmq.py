@@ -82,6 +82,7 @@ class FakeAioPikaModule:
     def __init__(self, connection: FakeConnection) -> None:
         self._connection = connection
         self.connect_calls: list[dict[str, Any]] = []
+        self.connect_errors: list[Exception] = []
 
     async def connect_robust(self, url: str, **kwargs: Any) -> FakeConnection:
         timeout = float(kwargs.get("timeout", 0.0))
@@ -93,6 +94,8 @@ class FakeAioPikaModule:
                 "heartbeat": heartbeat,
             }
         )
+        if self.connect_errors:
+            raise self.connect_errors.pop(0)
         return self._connection
 
 
@@ -143,3 +146,70 @@ class TestRabbitMqBroker:
 
         assert status.healthy is False
         assert status.details == {"error_type": "RuntimeError"}
+
+    async def test_create_retries_on_transient_connect_error(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        channel = FakeChannel()
+        connection = FakeConnection(channel)
+        fake_aio_pika = FakeAioPikaModule(connection)
+        fake_aio_pika.connect_errors = [ConnectionError("connection reset by peer")]
+        sleep_calls: list[float] = []
+
+        async def fake_sleep(seconds: float) -> None:
+            sleep_calls.append(seconds)
+
+        monkeypatch.setattr(rabbitmq_module, "_import_aio_pika", lambda: fake_aio_pika)
+        monkeypatch.setattr(rabbitmq_module.asyncio, "sleep", fake_sleep)
+
+        broker = await create_rabbitmq_broker(
+            RabbitMqSettings(
+                url="amqp://guest:guest@localhost:5672/",
+                prefetch_count=1,
+            )
+        )
+        await broker.close()
+
+        assert len(fake_aio_pika.connect_calls) == 2
+        assert sleep_calls == [rabbitmq_module._CREATE_INITIAL_BACKOFF_SECONDS]
+
+    async def test_create_translates_auth_error_without_retry(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        channel = FakeChannel()
+        connection = FakeConnection(channel)
+        fake_aio_pika = FakeAioPikaModule(connection)
+        fake_aio_pika.connect_errors = [RuntimeError("ACCESS_REFUSED")]
+        monkeypatch.setattr(rabbitmq_module, "_import_aio_pika", lambda: fake_aio_pika)
+
+        with pytest.raises(rabbitmq_module.BrokerAuthError, match="create"):
+            await create_rabbitmq_broker(
+                RabbitMqSettings(
+                    url="amqp://guest:guest@localhost:5672/",
+                    prefetch_count=1,
+                )
+            )
+
+        assert len(fake_aio_pika.connect_calls) == 1
+
+    async def test_create_translates_non_transient_error(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        channel = FakeChannel()
+        connection = FakeConnection(channel)
+        fake_aio_pika = FakeAioPikaModule(connection)
+        fake_aio_pika.connect_errors = [RuntimeError("boom")]
+        monkeypatch.setattr(rabbitmq_module, "_import_aio_pika", lambda: fake_aio_pika)
+
+        with pytest.raises(rabbitmq_module.BrokerOperationError, match="create"):
+            await create_rabbitmq_broker(
+                RabbitMqSettings(
+                    url="amqp://guest:guest@localhost:5672/",
+                    prefetch_count=1,
+                )
+            )
+
+        assert len(fake_aio_pika.connect_calls) == 1
