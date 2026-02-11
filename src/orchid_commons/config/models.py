@@ -55,10 +55,10 @@ class LangfuseSettings(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     enabled: bool = Field(default=True, description="Enable Langfuse tracing")
-    public_key: SecretStr | None = Field(
+    public_key: SecretStr = Field(
         default=None, min_length=1, description="Langfuse public key"
     )
-    secret_key: SecretStr | None = Field(
+    secret_key: SecretStr = Field(
         default=None, min_length=1, description="Langfuse secret key"
     )
     base_url: str = Field(
@@ -318,7 +318,7 @@ class QdrantSettings(BaseModel):
             "Set to False explicitly for local development."
         ),
     )
-    api_key: SecretStr | None = Field(default=None, min_length=1, description="Qdrant API key")
+    api_key: SecretStr = Field(default=None, min_length=1, description="Qdrant API key")
     timeout_seconds: float = Field(default=10.0, gt=0.0, description="Request timeout")
     prefer_grpc: bool = Field(default=False, description="Prefer gRPC transport")
     collection_prefix: str = Field(default="", description="Collection name prefix")
