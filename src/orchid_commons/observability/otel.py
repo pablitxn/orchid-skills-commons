@@ -618,7 +618,7 @@ def _resolve_status_code(
     if callable(status_code):
         try:
             value = status_code()
-        except Exception:
+        except (TypeError, ValueError, RuntimeError, AttributeError):
             return None
     else:
         value = status_code
