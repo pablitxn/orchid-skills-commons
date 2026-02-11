@@ -69,7 +69,3 @@ Thumbs.db
 .env.*
 !.env.example
 !.env.sample
-
-# Local links / workspace-specific entries
-romy-skills
-youtube-mcp
