@@ -14,10 +14,30 @@ from orchid_commons.config.resources import PostgresSettings
 from orchid_commons.db._sql_utils import collect_migration_files, read_sql_file
 from orchid_commons.observability import ObservableMixin
 from orchid_commons.observability.metrics import MetricsRecorder
-from orchid_commons.runtime.errors import MissingDependencyError
+from orchid_commons.runtime.errors import MissingDependencyError, OrchidCommonsError
 from orchid_commons.runtime.health import HealthStatus
 
 _T = TypeVar("_T")
+
+
+class PostgresError(OrchidCommonsError):
+    """Base exception for PostgreSQL operations."""
+
+    def __init__(self, operation: str, message: str) -> None:
+        self.operation = operation
+        super().__init__(f"Postgres {operation} failed: {message}")
+
+
+class PostgresAuthError(PostgresError):
+    """Raised when PostgreSQL authentication fails."""
+
+
+class PostgresTransientError(PostgresError):
+    """Raised for retryable PostgreSQL failures."""
+
+
+class PostgresOperationError(PostgresError):
+    """Raised for non-transient PostgreSQL failures."""
 
 
 def _import_asyncpg() -> Any:
@@ -29,6 +49,35 @@ def _import_asyncpg() -> Any:
             "Install with: uv sync --extra sql (or --extra db)"
         ) from exc
     return asyncpg
+
+
+def _translate_postgres_error(*, operation: str, exc: Exception) -> PostgresError:
+    """Translate asyncpg/connection exceptions to domain errors."""
+    if isinstance(exc, PostgresError):
+        return exc
+
+    message = str(exc) or type(exc).__name__
+    lowered = message.lower()
+
+    if any(token in lowered for token in ("authentication", "auth", "invalid_password", "28p01")):
+        return PostgresAuthError(operation, message)
+
+    if isinstance(exc, (asyncio.TimeoutError, TimeoutError, ConnectionError, OSError)) or any(
+        token in lowered
+        for token in (
+            "connection",
+            "timed out",
+            "timeout",
+            "temporar",
+            "cannot connect",
+            "connection refused",
+            "connection reset",
+            "too many clients",
+        )
+    ):
+        return PostgresTransientError(operation, message)
+
+    return PostgresOperationError(operation, message)
 
 
 def _build_retryable_exceptions(asyncpg: Any) -> tuple[type[BaseException], ...]:
@@ -75,12 +124,15 @@ class PostgresProvider(ObservableMixin):
             raise ValueError(msg)
 
         asyncpg = _import_asyncpg()
-        pool = await asyncpg.create_pool(
-            dsn=settings.dsn.get_secret_value(),
-            min_size=settings.min_pool_size,
-            max_size=settings.max_pool_size,
-            command_timeout=settings.command_timeout_seconds,
-        )
+        try:
+            pool = await asyncpg.create_pool(
+                dsn=settings.dsn.get_secret_value(),
+                min_size=settings.min_pool_size,
+                max_size=settings.max_pool_size,
+                command_timeout=settings.command_timeout_seconds,
+            )
+        except Exception as exc:
+            raise _translate_postgres_error(operation="create", exc=exc) from exc
         return cls(
             _pool=pool,
             command_timeout_seconds=settings.command_timeout_seconds,

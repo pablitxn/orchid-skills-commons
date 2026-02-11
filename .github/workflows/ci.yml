@@ -51,6 +51,35 @@ jobs:
       - name: Run tests
         run: uv run pytest --cov=src --cov-report=term-missing --cov-report=xml
 
+  qdrant-compat:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        qdrant-image: ["qdrant/qdrant:v1.15.0", "qdrant/qdrant:v1.16.2"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Set up Python
+        run: uv python install 3.11
+
+      - name: Install dependencies
+        run: uv sync --extra all --extra dev
+
+      - name: Run Qdrant compatibility integration tests
+        env:
+          ORCHID_QDRANT_IMAGE: ${{ matrix.qdrant-image }}
+        run: >
+          uv run pytest
+          tests/integration/connectors/test_qdrant_integration.py
+          tests/integration/e2e/test_e2e_all_modules.py
+          -m integration
+          -k qdrant
+          --maxfail=1
+
   security:
     runs-on: ubuntu-latest
     steps:

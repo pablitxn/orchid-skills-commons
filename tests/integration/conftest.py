@@ -201,7 +201,7 @@ def qdrant_settings() -> Iterator[QdrantSettings]:
 
     _require_docker()
     DockerContainer = pytest.importorskip("testcontainers.core.container").DockerContainer
-    image = os.getenv("ORCHID_QDRANT_IMAGE", "qdrant/qdrant:v1.9.0")
+    image = os.getenv("ORCHID_QDRANT_IMAGE", "qdrant/qdrant:v1.16.2")
     container = DockerContainer(image).with_exposed_ports(6333, 6334)
 
     try:

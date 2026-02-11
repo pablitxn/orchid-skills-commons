@@ -8,7 +8,7 @@ from typing import Any
 
 from orchid_commons.config.errors import PlaceholderResolutionError
 
-PLACEHOLDER_PATTERN = re.compile(r"\$\{([^}]+)\}")
+PLACEHOLDER_PATTERN = re.compile(r"\$\{([^}]+)}")
 
 
 def resolve_placeholders(
@@ -40,12 +40,11 @@ def resolve_placeholders(
 def _resolve_value(value: Any, path: str, strict: bool) -> Any:
     """Resolve placeholders recursively for dict/list/scalar values."""
     if isinstance(value, dict):
-        return {
-            key: _resolve_value(item, f"{path}.{key}", strict)
-            for key, item in value.items()
-        }
+        return {key: _resolve_value(item, f"{path}.{key}", strict) for key, item in value.items()}
     if isinstance(value, list):
-        return [_resolve_value(item, f"{path}[{index}]", strict) for index, item in enumerate(value)]
+        return [
+            _resolve_value(item, f"{path}[{index}]", strict) for index, item in enumerate(value)
+        ]
     if not isinstance(value, str):
         return value
 

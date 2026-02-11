@@ -6,7 +6,7 @@ import sys
 import threading
 import time
 from collections.abc import Callable
-from contextlib import asynccontextmanager, contextmanager, suppress
+from contextlib import asynccontextmanager, contextmanager
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -615,11 +615,11 @@ def _set_span_status(
 def _resolve_status_code(
     status_code: int | None | Callable[[], int | None],
 ) -> int | None:
-    value: int | None
     if callable(status_code):
-        value = None
-        with suppress(Exception):
+        try:
             value = status_code()
+        except Exception:
+            return None
     else:
         value = status_code
 

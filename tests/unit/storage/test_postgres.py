@@ -7,9 +7,16 @@ from typing import Any
 
 import pytest
 
+import orchid_commons.db.postgres as postgres_module
 from orchid_commons import ResourceManager
 from orchid_commons.config.resources import PostgresSettings, ResourceSettings
-from orchid_commons.db import PostgresProvider, create_postgres_provider
+from orchid_commons.db import (
+    PostgresAuthError,
+    PostgresOperationError,
+    PostgresProvider,
+    PostgresTransientError,
+    create_postgres_provider,
+)
 
 
 class FakeTransaction:
@@ -109,6 +116,19 @@ class FakePool:
 
     def terminate(self) -> None:
         self.terminated = True
+
+
+class FakeAsyncpgModule:
+    def __init__(self, *, create_pool_error: Exception | None = None) -> None:
+        self.create_pool_error = create_pool_error
+        self.create_pool_calls: list[dict[str, Any]] = []
+        self.pool = FakePool()
+
+    async def create_pool(self, **kwargs: Any) -> FakePool:
+        self.create_pool_calls.append(kwargs)
+        if self.create_pool_error is not None:
+            raise self.create_pool_error
+        return self.pool
 
 
 def build_provider(pool: FakePool) -> PostgresProvider:
@@ -254,6 +274,59 @@ class TestPostgresFactory:
                 PostgresSettings(
                     dsn="postgresql://invalid",
                     min_pool_size=3,
+                    max_pool_size=2,
+                    command_timeout_seconds=1.0,
+                )
+            )
+
+    async def test_factory_translates_transient_create_error(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        fake_asyncpg = FakeAsyncpgModule(create_pool_error=ConnectionError("connection refused"))
+        monkeypatch.setattr(postgres_module, "_import_asyncpg", lambda: fake_asyncpg)
+
+        with pytest.raises(PostgresTransientError, match="create"):
+            await create_postgres_provider(
+                PostgresSettings(
+                    dsn="postgresql://user:pass@localhost:5432/db",
+                    min_pool_size=1,
+                    max_pool_size=2,
+                    command_timeout_seconds=1.0,
+                )
+            )
+
+    async def test_factory_translates_auth_create_error(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        fake_asyncpg = FakeAsyncpgModule(
+            create_pool_error=RuntimeError("password authentication failed for user")
+        )
+        monkeypatch.setattr(postgres_module, "_import_asyncpg", lambda: fake_asyncpg)
+
+        with pytest.raises(PostgresAuthError, match="create"):
+            await create_postgres_provider(
+                PostgresSettings(
+                    dsn="postgresql://user:pass@localhost:5432/db",
+                    min_pool_size=1,
+                    max_pool_size=2,
+                    command_timeout_seconds=1.0,
+                )
+            )
+
+    async def test_factory_translates_operation_create_error(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        fake_asyncpg = FakeAsyncpgModule(create_pool_error=RuntimeError("syntax error"))
+        monkeypatch.setattr(postgres_module, "_import_asyncpg", lambda: fake_asyncpg)
+
+        with pytest.raises(PostgresOperationError, match="create"):
+            await create_postgres_provider(
+                PostgresSettings(
+                    dsn="postgresql://user:pass@localhost:5432/db",
+                    min_pool_size=1,
                     max_pool_size=2,
                     command_timeout_seconds=1.0,
                 )

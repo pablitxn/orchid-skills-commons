@@ -19,6 +19,10 @@ uv run pytest -m integration
 | Qdrant | `tests/integration/connectors/test_qdrant_integration.py` | Docker (or external endpoint) |
 | Observability smoke | `tests/integration/observability/test_observability_integration.py` | `observability` extra |
 
+Qdrant CI compatibility matrix:
+- `qdrant/qdrant:v1.15.0`
+- `qdrant/qdrant:v1.16.2`
+
 ## Service Selection
 
 PostgreSQL fixture behavior:
@@ -31,7 +35,7 @@ MinIO fixture behavior:
 
 Qdrant fixture behavior:
 - If `ORCHID_QDRANT_URL` or `ORCHID_QDRANT_HOST` is set, tests use provided endpoint.
-- Otherwise, tests start `qdrant/qdrant:v1.9.0` via testcontainers.
+- Otherwise, tests start `qdrant/qdrant:v1.16.2` via testcontainers.
 
 Optional MinIO env vars:
 - `ORCHID_MINIO_ACCESS_KEY` (default: `minioadmin`)
@@ -55,7 +59,7 @@ Optional Qdrant env vars:
 - `ORCHID_QDRANT_TIMEOUT_SECONDS` (default: `10.0`)
 - `ORCHID_QDRANT_PREFER_GRPC` (default: `false`)
 - `ORCHID_QDRANT_COLLECTION_PREFIX` (default: generated per test session)
-- `ORCHID_QDRANT_IMAGE` (default: `qdrant/qdrant:v1.9.0`)
+- `ORCHID_QDRANT_IMAGE` (default: `qdrant/qdrant:v1.16.2`)
 
 ## Error/Transient Coverage
 

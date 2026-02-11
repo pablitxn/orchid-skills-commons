@@ -10,7 +10,14 @@ from orchid_commons.db.document import (
     DocumentValidationError,
 )
 from orchid_commons.db.mongodb import MongoDbResource, create_mongodb_resource
-from orchid_commons.db.postgres import PostgresProvider, create_postgres_provider
+from orchid_commons.db.postgres import (
+    PostgresAuthError,
+    PostgresError,
+    PostgresOperationError,
+    PostgresProvider,
+    PostgresTransientError,
+    create_postgres_provider,
+)
 from orchid_commons.db.qdrant import QdrantVectorStore, create_qdrant_vector_store
 from orchid_commons.db.rabbitmq import (
     BrokerAuthError,
@@ -58,7 +65,11 @@ __all__ = [
     "DocumentTransientError",
     "DocumentValidationError",
     "MongoDbResource",
+    "PostgresAuthError",
+    "PostgresError",
+    "PostgresOperationError",
     "PostgresProvider",
+    "PostgresTransientError",
     "QdrantVectorStore",
     "RabbitMqBroker",
     "RedisCache",
