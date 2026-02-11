@@ -173,6 +173,36 @@ class TestRabbitMqBroker:
         assert len(fake_aio_pika.connect_calls) == 2
         assert sleep_calls == [settings.startup_retry_initial_backoff_seconds]
 
+    async def test_create_exhausts_transient_retries_with_backoff_caps(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        channel = FakeChannel()
+        connection = FakeConnection(channel)
+        fake_aio_pika = FakeAioPikaModule(connection)
+        fake_aio_pika.connect_errors = [ConnectionError("connection reset by peer")] * 3
+        sleep_calls: list[float] = []
+
+        async def fake_sleep(seconds: float) -> None:
+            sleep_calls.append(seconds)
+
+        monkeypatch.setattr(rabbitmq_module, "_import_aio_pika", lambda: fake_aio_pika)
+        monkeypatch.setattr(rabbitmq_module.asyncio, "sleep", fake_sleep)
+
+        settings = RabbitMqSettings(
+            url="amqp://guest:guest@localhost:5672/",
+            prefetch_count=1,
+            startup_retry_attempts=3,
+            startup_retry_initial_backoff_seconds=0.2,
+            startup_retry_max_backoff_seconds=0.3,
+        )
+
+        with pytest.raises(rabbitmq_module.BrokerTransientError, match="create"):
+            await create_rabbitmq_broker(settings)
+
+        assert len(fake_aio_pika.connect_calls) == settings.startup_retry_attempts
+        assert sleep_calls == [0.2, 0.3]
+
     async def test_create_translates_auth_error_without_retry(
         self,
         monkeypatch: pytest.MonkeyPatch,

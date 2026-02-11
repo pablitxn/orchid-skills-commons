@@ -229,6 +229,18 @@ class TestMongoDbResource:
 
         assert client.closed is True
 
+    async def test_ping_translates_connection_error(self) -> None:
+        database = FakeDatabase()
+        database.command_error = ConnectionError("mongo unavailable")
+        resource = MongoDbResource(
+            _client=FakeMongoClient(database),
+            _database=database,
+            database_name="orchid",
+        )
+
+        with pytest.raises(mongodb_module.DocumentTransientError, match="ping"):
+            await resource.ping()
+
     async def test_health_check_unhealthy(self) -> None:
         database = FakeDatabase()
         database.command_error = RuntimeError("mongo unavailable")

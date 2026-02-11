@@ -293,9 +293,6 @@ class TestQdrantVectorStoreE2E:
             # First result should be most similar (itself or very close)
             assert results[0].score > 0.9
 
-            # Delete collection
-            await store.delete_collection(collection)
-
             # Health check
             health = await store.health_check()
             assert health.healthy is True

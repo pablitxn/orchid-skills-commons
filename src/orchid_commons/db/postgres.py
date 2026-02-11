@@ -305,6 +305,8 @@ class PostgresProvider(ObservableMixin):
                     self._observe_postgres_pool_usage()
                     return result
             except retryable_exceptions as exc:
+                if not isinstance(exc, Exception):
+                    raise
                 if attempt >= self.retry_attempts:
                     self._observe_error(operation_name, started, exc)
                     self._observe_postgres_pool_usage()
