@@ -8,6 +8,8 @@ profile:
   name: qodana.recommended
 bootstrap: |
   pip install uv
+  export UV_CACHE_DIR=/tmp/uv-cache
+  mkdir -p "$UV_CACHE_DIR"
   uv sync --extra all --extra dev --frozen
 include:
   - name: CheckDependencyLicenses

@@ -40,3 +40,4 @@ jobs:
           QODANA_TOKEN: ${{ secrets.QODANA_TOKEN_652186328 }}
           QODANA_ENDPOINT: 'https://qodana.cloud'
           QODANA_PYTHON_PATH: .venv/bin/python
+          UV_CACHE_DIR: /tmp/uv-cache
